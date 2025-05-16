@@ -42,9 +42,8 @@ const ContentArea = React.memo(() => (
     minHeight: 280,
     borderRadius: '4px'
   }}>
-    <Suspense fallback={<div style={{ textAlign: 'center', padding: '20px' }}><Spin size="large" /></div>}>
-      <Outlet />
-    </Suspense>
+    {/* 注意：路由配置中已经为每个路由添加了Suspense包装，这里不再需要 */}
+    <Outlet />
   </Content>
 ));
 

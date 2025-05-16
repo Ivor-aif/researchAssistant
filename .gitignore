@@ -54,3 +54,6 @@ build
 *.njsproj
 *.sln
 *.sw?
+
+# 自定义脚本
+gitCheckpoint.bat

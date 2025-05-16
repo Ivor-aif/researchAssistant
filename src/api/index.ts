@@ -2,12 +2,17 @@ import axios from 'axios';
 
 // 创建axios实例
 const api = axios.create({
-  baseURL: 'http://127.0.0.1:8000/api',
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api',
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json'
   }
 });
+
+// 开发环境下的错误处理
+if (import.meta.env.DEV) {
+  console.log('API运行在开发环境，API基础URL:', api.defaults.baseURL);
+}
 
 // 请求拦截器 - 可以在这里添加认证token等
 api.interceptors.request.use(
@@ -24,7 +29,33 @@ api.interceptors.request.use(
 // 响应拦截器
 api.interceptors.response.use(
   response => response.data,
-  error => Promise.reject(error)
+  error => {
+    // 开发环境下打印错误信息
+    if (import.meta.env.DEV) {
+      console.error('API请求错误:', error.message);
+    }
+    
+    // 根据错误状态码处理不同情况
+    if (error.response) {
+      // 服务器返回了错误状态码
+      const status = error.response.status;
+      if (status === 401) {
+        // 未授权，可能需要重新登录
+        console.warn('用户未授权，请重新登录');
+      } else if (status === 404) {
+        // 资源不存在
+        console.warn('请求的资源不存在');
+      } else if (status >= 500) {
+        // 服务器错误
+        console.warn('服务器错误，请稍后再试');
+      }
+    } else if (error.request) {
+      // 请求已发送但没有收到响应
+      console.warn('无法连接到服务器，请检查网络连接');
+    }
+    
+    return Promise.reject(error);
+  }
 );
 
 // 论文检索相关API

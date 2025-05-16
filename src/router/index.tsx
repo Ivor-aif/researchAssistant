@@ -1,5 +1,5 @@
 import React, { lazy, Suspense } from 'react';
-import { createBrowserRouter } from 'react-router-dom';
+import { createBrowserRouter, Navigate } from 'react-router-dom';
 import OptimizedMainLayout from '../components/layout/OptimizedMainLayout';
 
 // 使用懒加载优化页面加载性能
@@ -16,28 +16,32 @@ const router = createBrowserRouter([
     element: <OptimizedMainLayout />,
     children: [
       {
+        index: true,
+        element: <Navigate to="/paper-search" replace />
+      },
+      {
         path: 'auth',
-        element: <Auth />
+        element: <Suspense fallback={<div>加载中...</div>}><Auth /></Suspense>
       },
       {
         path: 'paper-search',
-        element: <PaperSearch />
+        element: <Suspense fallback={<div>加载中...</div>}><PaperSearch /></Suspense>
       },
       {
         path: 'innovation-analysis',
-        element: <InnovationAnalysis />
+        element: <Suspense fallback={<div>加载中...</div>}><InnovationAnalysis /></Suspense>
       },
       {
         path: 'research-progress',
-        element: <ResearchProgress />
+        element: <Suspense fallback={<div>加载中...</div>}><ResearchProgress /></Suspense>
       },
       {
         path: 'paper-reproduction',
-        element: <PaperReproduction />
+        element: <Suspense fallback={<div>加载中...</div>}><PaperReproduction /></Suspense>
       },
       {
         path: 'report',
-        element: <Report />
+        element: <Suspense fallback={<div>加载中...</div>}><Report /></Suspense>
       }
     ]
   }
