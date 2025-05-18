@@ -58,34 +58,73 @@ const PaperReproduction: React.FC = () => {
 
   const renderStepContent = (step: ExperimentStep) => (
     <Space direction="vertical" style={{ width: '100%' }}>
-      <Paragraph>{step.description}</Paragraph>
+      <Paragraph style={{ fontSize: '15px', lineHeight: '1.8' }}>{step.description}</Paragraph>
       {step.code && (
         <>
-          <Text strong>代码：</Text>
-          <pre style={{ background: '#f5f5f5', padding: 16, borderRadius: 4 }}>
+          <Text strong style={{ fontSize: '15px' }}>代码：</Text>
+          <pre style={{ 
+            background: '#f5f5f5', 
+            padding: '20px', 
+            borderRadius: '10px',
+            fontSize: '14px',
+            lineHeight: '1.6',
+            overflow: 'auto',
+            boxShadow: 'inset 0 0 6px rgba(0, 0, 0, 0.02)'
+          }}>
             {step.code}
           </pre>
         </>
       )}
       {step.results && (
         <>
-          <Text strong>结果：</Text>
-          <Paragraph>{step.results}</Paragraph>
+          <Text strong style={{ fontSize: '15px' }}>结果：</Text>
+          <Paragraph style={{ 
+            fontSize: '15px', 
+            lineHeight: '1.8',
+            padding: '15px',
+            backgroundColor: '#f9f9f9',
+            borderRadius: '10px'
+          }}>{step.results}</Paragraph>
         </>
       )}
     </Space>
-  );
+   );
+
+
 
   return (
-    <div>
-      <Card title="论文复现" bordered={false}>
-        <Space direction="vertical" style={{ width: '100%' }} size="large">
+    <div style={{ 
+      padding: '20px', 
+      display: 'flex', 
+      justifyContent: 'center',
+      width: '100%',
+      minHeight: '100vh',
+      backgroundColor: '#f5f5f5'
+    }}>
+      <Card 
+        title={<div style={{ fontSize: '22px', textAlign: 'center', padding: '10px 0' }}>论文复现</div>} 
+        bordered={false}
+        style={{ 
+          width: '100%', 
+          maxWidth: '1200px',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
+          borderRadius: '12px'
+        }}
+      >
+        <Space direction="vertical" style={{ width: '100%', maxWidth: '800px', margin: '0 auto', padding: '0 20px' }} size="large">
           <Upload
             fileList={fileList}
             onChange={handleFileChange}
             beforeUpload={() => false}
+            style={{ width: '100%' }}
           >
-            <Button icon={<UploadOutlined />}>上传论文和代码</Button>
+            <Button 
+              icon={<UploadOutlined />} 
+              style={{ width: '100%', height: '46px', borderRadius: '8px' }}
+              size="large"
+            >
+              上传论文和代码
+            </Button>
           </Upload>
 
           <Button
@@ -93,11 +132,22 @@ const PaperReproduction: React.FC = () => {
             icon={<ExperimentOutlined />}
             onClick={handleStartReproduction}
             disabled={fileList.length === 0}
+            style={{ width: '100%', height: '46px', borderRadius: '8px' }}
+            size="large"
           >
             开始复现
           </Button>
 
           {experimentSteps.length > 0 && (
+            <div style={{ 
+              width: '100%', 
+              maxWidth: '1100px', 
+              margin: '20px auto 0',
+              padding: '20px',
+              backgroundColor: '#fff',
+              borderRadius: '12px',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.03)'
+            }}>
             <>
               <Divider />
               <Title level={4}>复现进度</Title>
@@ -111,6 +161,7 @@ const PaperReproduction: React.FC = () => {
                 }))}
               />
             </>
+            </div>
           )}
         </Space>
       </Card>

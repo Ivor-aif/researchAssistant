@@ -1,5 +1,5 @@
 import React, { lazy, Suspense, useMemo, useCallback } from 'react';
-import { Layout, Menu, Spin } from 'antd';
+import { Layout, Menu, Spin, Typography, Avatar, Space, Divider } from 'antd';
 import { Link, Outlet } from 'react-router-dom';
 import {
   FileSearchOutlined,
@@ -7,27 +7,60 @@ import {
   BarChartOutlined,
   ExperimentOutlined,
   FileTextOutlined,
-  UserOutlined
+  UserOutlined,
+  RobotOutlined
 } from '@ant-design/icons';
 
-const { Header, Content, Sider } = Layout;
+const { Header, Content, Sider, Footer } = Layout;
+const { Title, Text } = Typography;
 
 // 使用React.memo包装纯展示型组件
 const AppHeader = React.memo(() => (
-  <Header style={{ padding: 0, background: '#fff' }}>
-    <div style={{ float: 'left', width: 200, height: '100%', padding: '0 1rem' }}>
-      <h1 style={{ margin: 0, fontSize: '1.2rem', lineHeight: '64px' }}>AI 研究助手</h1>
+  <Header style={{ 
+    padding: '0 24px', 
+    background: '#1890ff', 
+    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between'
+  }}>
+    <div style={{ display: 'flex', alignItems: 'center' }}>
+      <Avatar 
+        icon={<RobotOutlined />} 
+        style={{ backgroundColor: '#fff', color: '#1890ff', marginRight: 12 }} 
+        size={40} 
+      />
+      <Title level={4} style={{ margin: 0, color: '#fff' }}>AI 研究助手</Title>
     </div>
+    <Space>
+      <Avatar style={{ backgroundColor: '#f56a00' }}>U</Avatar>
+    </Space>
   </Header>
 ));
 
 // 使用React.memo优化侧边栏菜单
 const SideMenu = React.memo(({ menuItems, defaultSelectedKey }: { menuItems: any[], defaultSelectedKey: string }) => (
-  <Sider width={200} style={{ background: '#fff' }}>
+  <Sider 
+    width={220} 
+    style={{ 
+      background: '#fff',
+      boxShadow: '2px 0 8px 0 rgba(29,35,41,.05)',
+      zIndex: 10,
+      height: '100%'
+    }}
+  >
+    <div style={{ padding: '16px 0', textAlign: 'center' }}>
+      <Text type="secondary" style={{ fontSize: '12px' }}>研究工具</Text>
+    </div>
+    <Divider style={{ margin: '0 0 8px 0' }} />
     <Menu
       mode="inline"
       defaultSelectedKeys={[defaultSelectedKey]}
-      style={{ height: '100%', borderRight: 0 }}
+      style={{ 
+        height: 'calc(100% - 60px)', 
+        borderRight: 0,
+        padding: '8px 0'
+      }}
       items={menuItems}
     />
   </Sider>
@@ -36,14 +69,41 @@ const SideMenu = React.memo(({ menuItems, defaultSelectedKey }: { menuItems: any
 // 使用React.memo优化内容区域
 const ContentArea = React.memo(() => (
   <Content style={{
-    background: '#fff',
-    padding: 24,
+    padding: '24px',
     margin: 0,
-    minHeight: 280,
-    borderRadius: '4px'
+    minHeight: 'calc(100vh - 64px - 48px)',
+    borderRadius: '8px',
+    background: '#f0f2f5',
+    width: '100%', // 确保内容区域占满可用宽度
+    flex: 1, // 添加弹性布局，使内容区域自动填充可用空间
+    display: 'flex', // 添加弹性布局
+    flexDirection: 'column' // 设置垂直方向布局
   }}>
-    {/* 注意：路由配置中已经为每个路由添加了Suspense包装，这里不再需要 */}
-    <Outlet />
+    <div style={{
+      background: '#fff',
+      padding: '24px',
+      borderRadius: '8px',
+      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
+      minHeight: 'calc(100vh - 64px - 48px - 48px)',
+      width: '100%', // 确保内容容器占满父元素宽度
+      flex: 1, // 添加弹性布局，使内容区域自动填充可用空间
+      display: 'flex', // 添加弹性布局
+      flexDirection: 'column' // 设置垂直方向布局
+    }}>
+      <Suspense fallback={
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          height: '100%', 
+          padding: '40px' 
+        }}>
+          <Spin size="large" tip="加载中..." />
+        </div>
+      }>
+        <Outlet />
+      </Suspense>
+    </div>
   </Content>
 ));
 
@@ -85,10 +145,18 @@ const OptimizedMainLayout: React.FC = () => {
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <AppHeader />
-      <Layout>
+      <Layout style={{ display: 'flex', flexDirection: 'row', width: '100%' }}>
         <SideMenu menuItems={menuItems} defaultSelectedKey="paper-search" />
-        <Layout style={{ padding: '24px' }}>
+        <Layout style={{ background: '#f0f2f5', flex: 1, width: '100%' }}>
           <ContentArea />
+          <Footer style={{ 
+            textAlign: 'center', 
+            background: '#f0f2f5', 
+            padding: '12px 50px',
+            height: '48px'
+          }}>
+            <Text type="secondary">AI 研究助手 ©{new Date().getFullYear()} 版权所有</Text>
+          </Footer>
         </Layout>
       </Layout>
     </Layout>

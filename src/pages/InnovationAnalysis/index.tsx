@@ -61,42 +61,96 @@ const InnovationAnalysis: React.FC = () => {
   };
 
   return (
-    <Card title="创新点分析" bordered={false}>
-      <div style={{ marginBottom: 20 }}>
-        <TextArea 
-          placeholder="请输入论文ID或DOI" 
-          value={paperId}
-          onChange={(e) => setPaperId(e.target.value)}
-          style={{ marginBottom: 10 }}
-          rows={2}
-        />
-        <Button 
-          type="primary" 
-          icon={<BulbOutlined />} 
-          loading={loading}
-          onClick={handleAnalyze}
-        >
-          分析创新点
-        </Button>
-      </div>
+    <div style={{ 
+      padding: '20px', 
+      display: 'flex', 
+      justifyContent: 'center',
+      width: '100%',
+      minHeight: '100vh',
+      backgroundColor: '#f5f5f5'
+    }}>
+      <Card 
+        title={<div style={{ fontSize: '22px', textAlign: 'center', padding: '10px 0' }}>创新点分析</div>} 
+        bordered={false}
+        style={{ 
+          width: '100%', 
+          maxWidth: '1200px',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
+          borderRadius: '12px'
+        }}
+      >
+        <div style={{ 
+          width: '100%', 
+          maxWidth: '800px', 
+          margin: '0 auto 40px',
+          padding: '0 20px'
+        }}>
+          <TextArea 
+            placeholder="请输入论文ID或DOI" 
+            value={paperId}
+            onChange={(e) => setPaperId(e.target.value)}
+            style={{ marginBottom: '20px', borderRadius: '8px' }}
+            rows={3}
+          />
+          <Button 
+            type="primary" 
+            icon={<BulbOutlined />} 
+            loading={loading}
+            onClick={handleAnalyze}
+            size="large"
+            style={{ width: '100%', height: '46px', borderRadius: '8px' }}
+          >
+            分析创新点
+          </Button>
+        </div>
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '20px' }}>
+        <div style={{ 
+          textAlign: 'center', 
+          padding: '80px 0', 
+          color: '#999',
+          backgroundColor: '#f9f9f9',
+          borderRadius: '12px',
+          margin: '0 auto',
+          width: '100%',
+          maxWidth: '1100px'
+        }}>
           <Spin size="large" />
-          <p>正在分析论文创新点，请稍候...</p>
+          <p style={{ marginTop: '20px', fontSize: '16px' }}>正在分析论文创新点，请稍候...</p>
         </div>
       ) : (
         <List
           itemLayout="vertical"
           dataSource={innovationPoints}
+          style={{ 
+            background: '#fff', 
+            borderRadius: '12px',
+            width: '100%',
+            maxWidth: '1100px',
+            margin: '0 auto',
+            padding: '0 20px'
+          }}
           renderItem={(item) => (
-            <List.Item>
-              <Card type="inner" title={item.title}>
-                <Paragraph>
-                  <Text strong>描述：</Text> {item.description}
+            <List.Item
+              style={{ 
+                padding: '24px', 
+                marginBottom: '24px', 
+                border: '1px solid #f0f0f0', 
+                borderRadius: '12px',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.04)',
+                transition: 'all 0.3s ease'
+              }}
+            >
+              <Card 
+                type="inner" 
+                title={<span style={{ fontSize: '20px', fontWeight: 'bold', color: '#1890ff' }}>{item.title}</span>}
+                style={{ borderRadius: '10px' }}
+              >
+                <Paragraph style={{ fontSize: '15px', lineHeight: '1.8' }}>
+                  <Text strong style={{ fontSize: '15px' }}>描述：</Text> {item.description}
                 </Paragraph>
-                <Paragraph>
-                  <Text strong>重要性：</Text> {item.significance}
+                <Paragraph style={{ fontSize: '15px', lineHeight: '1.8' }}>
+                  <Text strong style={{ fontSize: '15px' }}>重要性：</Text> {item.significance}
                 </Paragraph>
                 <Paragraph>
                   <Text strong>相关度：</Text> {item.relevance}/5
@@ -107,6 +161,7 @@ const InnovationAnalysis: React.FC = () => {
         />
       )}
     </Card>
+    </div>
   );
 };
 

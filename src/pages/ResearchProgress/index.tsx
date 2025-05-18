@@ -98,47 +98,76 @@ const ResearchProgress: React.FC = () => {
   return (
     <div>
       <Card
-        title="研究进度追踪"
+        title={<div style={{ fontSize: '22px', textAlign: 'center', padding: '10px 0' }}>研究进度</div>}
         bordered={false}
-        extra={
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={handleAddMilestone}
-          >
-            添加里程碑
-          </Button>
-        }
+        style={{ 
+          width: '100%', 
+          maxWidth: '1200px',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
+          borderRadius: '12px'
+        }}
+        extra={<Button type="primary" icon={<PlusOutlined />} onClick={handleAddMilestone} size="large" style={{ borderRadius: '8px' }}>添加里程碑</Button>}
       >
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '20px' }}>
+          <div style={{ 
+            textAlign: 'center', 
+            padding: '80px 0', 
+            color: '#999',
+            backgroundColor: '#f9f9f9',
+            borderRadius: '12px',
+            margin: '0 auto',
+            width: '100%',
+            maxWidth: '1100px'
+          }}>
             <Spin size="large" />
-            <p>正在加载研究进度数据，请稍候...</p>
+            <p style={{ marginTop: '20px', fontSize: '16px' }}>加载中...</p>
+          </div>
+        ) : milestones.length === 0 ? (
+          <div style={{ 
+            textAlign: 'center', 
+            padding: '80px 0', 
+            color: '#999',
+            backgroundColor: '#f9f9f9',
+            borderRadius: '12px',
+            margin: '0 auto',
+            width: '100%',
+            maxWidth: '1100px'
+          }}>
+            <p style={{ fontSize: '16px' }}>暂无研究进度数据，请添加里程碑</p>
           </div>
         ) : (
-          <>
-            <Timeline
-              mode="left"
-              items={milestones.map(milestone => ({
-                color: getTimelineColor(milestone.status),
-                label: milestone.date,
-                children: (
-                  <Space direction="vertical">
-                    <Title level={5}>{milestone.title}</Title>
-                    <Text>{milestone.description}</Text>
-                  </Space>
-                )
-              }))}
-            />
-
-            {milestones.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '20px' }}>
-            <ClockCircleOutlined style={{ fontSize: 24, color: '#999' }} />
-            <p>暂无研究进度记录，点击"添加里程碑"按钮创建</p>
+          <div style={{ 
+            width: '100%', 
+            maxWidth: '1100px', 
+            margin: '0 auto',
+            padding: '20px',
+            backgroundColor: '#fff',
+            borderRadius: '12px',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.03)'
+          }}>
+            <Timeline mode="left">
+              {milestones.map((milestone) => (
+                <Timeline.Item
+                  key={milestone.id}
+                  color={getTimelineColor(milestone.status)}
+                  label={<span style={{ fontSize: '15px' }}>{milestone.date}</span>}
+                >
+                  <Card
+                    size="small"
+                    title={<span style={{ fontSize: '18px', fontWeight: 'bold', color: '#1890ff' }}>{milestone.title}</span>}
+                    style={{ 
+                      marginBottom: 16, 
+                      borderRadius: '10px',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.03)'
+                    }}
+                  >
+                    <p style={{ fontSize: '15px', lineHeight: '1.8' }}>{milestone.description}</p>
+                  </Card>
+                </Timeline.Item>
+              ))}
+            </Timeline>
           </div>
         )}
-      </>
-    )}
       </Card>
 
       {/* 添加里程碑模态框 */}
@@ -180,3 +209,6 @@ const ResearchProgress: React.FC = () => {
       </Modal>
     </div>
   );
+};
+
+export default ResearchProgress;

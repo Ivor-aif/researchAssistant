@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { Input, Card, List, Tag, Space, Typography, Button, message } from 'antd';
-import { SearchOutlined, DownloadOutlined, StarOutlined } from '@ant-design/icons';
+import { Input, Card, List, Tag, Space, Typography, Button, message, Tooltip } from 'antd';
+import { SearchOutlined, DownloadOutlined, StarOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { paperApi } from '../../api';
+import PageHeader from '../../components/common/PageHeader';
+import theme from '../../theme';
 
 const { Search } = Input;
 const { Text } = Typography;
@@ -20,6 +22,7 @@ interface Paper {
 const PaperSearch: React.FC = () => {
   const [papers, setPapers] = useState<Paper[]>([]);
   const [loading, setLoading] = useState(false);
+  const [searchKeyword, setSearchKeyword] = useState('');
 
   const handleSearch = async (value: string) => {
     if (!value.trim()) {
@@ -27,6 +30,7 @@ const PaperSearch: React.FC = () => {
       return;
     }
     
+    setSearchKeyword(value);
     setLoading(true);
     try {
       // 调用后端API进行论文检索
@@ -54,69 +58,119 @@ const PaperSearch: React.FC = () => {
         }
       ];
       setPapers(mockPapers);
-    } catch (error) {
-      console.error('搜索失败:', error);
     } finally {
       setLoading(false);
     }
   };
 
+  // 页面额外操作按钮
+  const pageHeaderExtra = (
+    <Tooltip title="查看使用帮助">
+      <Button type="text" icon={<InfoCircleOutlined />}>帮助</Button>
+    </Tooltip>
+  );
+
   return (
-    <div>
-      <Card title="论文检索" bordered={false}>
+    <div style={{ width: '100%', maxWidth: '100%', display: 'flex', flexDirection: 'column', flex: 1 }}>
+      <PageHeader 
+        title="论文检索" 
+        subtitle={searchKeyword ? `当前搜索: ${searchKeyword}` : "输入关键词搜索相关研究论文"}
+        extra={pageHeaderExtra}
+      />
+      
+      <Card 
+        style={{ 
+          marginBottom: theme.spacing.lg,
+          boxShadow: theme.shadows.sm,
+          borderRadius: theme.borderRadius.lg,
+          border: `1px solid ${theme.colors.borderColor}`,
+          width: '100%',
+          flex: '0 0 auto'
+        }}
+        bodyStyle={{ padding: theme.spacing.md, width: '100%' }}
+      >
         <Search
-          placeholder="输入关键词、标题或作者进行搜索"
-          enterButton={<SearchOutlined />}
+          placeholder="输入关键词搜索论文"
+          enterButton={<><SearchOutlined /> 搜索</>}
           size="large"
           loading={loading}
           onSearch={handleSearch}
-        />
-
-        <List
-          itemLayout="vertical"
-          size="large"
-          dataSource={papers}
-          renderItem={(paper) => (
-            <List.Item
-              key={paper.id}
-              actions={[
-                <Button icon={<DownloadOutlined />} key="download">下载</Button>,
-                <Button icon={<StarOutlined />} key="favorite">收藏</Button>
-              ]}
-            >
-              <List.Item.Meta
-                title={<a href="#">{paper.title}</a>}
-                description={
-                  <Space direction="vertical">
-                    <Space>
-                      <Text type="secondary">作者：</Text>
-                      {paper.authors.join(', ')}
-                    </Space>
-                    <Space>
-                      <Text type="secondary">期刊：</Text>
-                      {paper.journal}
-                    </Space>
-                    <Space>
-                      <Text type="secondary">年份：</Text>
-                      {paper.year}
-                    </Space>
-                    <Space>
-                      <Text type="secondary">被引用次数：</Text>
-                      {paper.citations}
-                    </Space>
-                    <Space>
-                      {paper.keywords.map((keyword) => (
-                        <Tag key={keyword} color="blue">{keyword}</Tag>
-                      ))}
-                    </Space>
-                  </Space>
-                }
-              />
-              <div>{paper.abstract}</div>
-            </List.Item>
-          )}
+          style={{ width: '100%' }}
         />
       </Card>
+
+      {papers.length > 0 && (
+        <Card 
+          style={{ 
+            boxShadow: theme.shadows.sm,
+            borderRadius: theme.borderRadius.lg,
+            border: `1px solid ${theme.colors.borderColor}`,
+            width: '100%',
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column'
+          }}
+          bodyStyle={{ padding: 0, width: '100%', flex: 1, display: 'flex', flexDirection: 'column' }}
+        >
+          <List
+            style={{ width: '100%', flex: 1 }}
+            dataSource={papers}
+            renderItem={paper => (
+              <List.Item
+                key={paper.id}
+                style={{ 
+                  padding: theme.spacing.md,
+                  borderBottom: `1px solid ${theme.colors.dividerColor}`,
+                  transition: `background-color ${theme.transitions.normal}`,
+                  '&:hover': { backgroundColor: 'rgba(24, 144, 255, 0.05)' }
+                }}
+                actions={[
+                  <Button type="text" icon={<StarOutlined />} key="favorite">收藏</Button>,
+                  <Button type="primary" ghost icon={<DownloadOutlined />} key="download">下载</Button>
+                ]}
+              >
+                <List.Item.Meta
+                  title={
+                    <Space direction="vertical" size={theme.spacing.sm}>
+                      <Text strong style={{ fontSize: theme.typography.fontSize.lg, color: theme.colors.primary }}>{paper.title}</Text>
+                      <Space size={[0, 8]} wrap>
+                        {paper.keywords.map(keyword => (
+                          <Tag color="blue" key={keyword}>{keyword}</Tag>
+                        ))}
+                      </Space>
+                    </Space>
+                  }
+                  description={
+                    <Space direction="vertical" size={theme.spacing.sm} style={{ marginTop: theme.spacing.sm }}>
+                      <Text type="secondary">作者: {paper.authors.join(', ')}</Text>
+                      <Text type="secondary">{paper.journal} ({paper.year}) | 引用次数: {paper.citations}</Text>
+                      <Text style={{ color: theme.colors.textPrimary }}>{paper.abstract}</Text>
+                    </Space>
+                  }
+                />
+              </List.Item>
+            )}
+          />
+        </Card>
+      )}
+      
+      {papers.length === 0 && !loading && searchKeyword && (
+        <Card
+          style={{ 
+            textAlign: 'center', 
+            padding: theme.spacing.xl,
+            boxShadow: theme.shadows.sm,
+            borderRadius: theme.borderRadius.lg,
+            border: `1px solid ${theme.colors.borderColor}`,
+            width: '100%',
+            flex: 1
+          }}
+        >
+          <Text type="secondary" style={{ fontSize: theme.typography.fontSize.md }}>
+            未找到相关论文，请尝试其他关键词
+          </Text>
+        </Card>
+      )}
     </div>
   );
 };
