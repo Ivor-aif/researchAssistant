@@ -2,6 +2,7 @@ import React from 'react';
 import { RouterProvider } from 'react-router-dom';
 import { ConfigProvider } from 'antd';
 import router from './router';
+import { AuthProvider } from './contexts/AuthContext';
 import './App.css';
 
 // 自定义主题配置
@@ -34,7 +35,9 @@ const themeConfig = {
 function App() {
   return (
     <ConfigProvider theme={themeConfig}>
-      <RouterProvider router={router} />
+      <AuthProvider>
+        <RouterProvider router={router} />
+      </AuthProvider>
     </ConfigProvider>
   );
 }

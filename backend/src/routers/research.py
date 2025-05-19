@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 
 from ..database import get_db
 from ..models.research import ResearchProject, Paper, ProgressRecord, InnovationPoint, ProjectStatus
-from ..security import verify_token
+from ..models.user import User
+from ..routers.auth import get_current_user
 
 router = APIRouter(prefix="/research", tags=["research"])
 
@@ -15,7 +16,7 @@ def create_project(
     description: Optional[str] = None,
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
-    user_id: int = Depends(verify_token),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """创建研究项目"""
@@ -24,7 +25,7 @@ def create_project(
         description=description,
         start_date=start_date,
         end_date=end_date,
-        user_id=user_id,
+        user_id=current_user.id,
         status=ProjectStatus.PLANNING
     )
     db.add(project)
@@ -34,14 +35,14 @@ def create_project(
 
 @router.get("/projects")
 def get_projects(
-    user_id: int = Depends(verify_token),
+    current_user: User = Depends(get_current_user),
     skip: int = 0,
     limit: int = 10,
     db: Session = Depends(get_db)
 ):
     """获取用户的研究项目列表"""
     projects = db.query(ResearchProject).filter(
-        ResearchProject.user_id == user_id
+        ResearchProject.user_id == current_user.id
     ).offset(skip).limit(limit).all()
     return projects
 
@@ -53,14 +54,14 @@ def add_paper(
     abstract: Optional[str] = None,
     url: Optional[str] = None,
     publication_date: Optional[datetime] = None,
-    user_id: int = Depends(verify_token),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """添加相关论文"""
     # 验证项目所有权
     project = db.query(ResearchProject).filter(
         ResearchProject.id == project_id,
-        ResearchProject.user_id == user_id
+        ResearchProject.user_id == current_user.id
     ).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -83,13 +84,13 @@ def record_progress(
     project_id: int,
     content: str,
     milestone: Optional[str] = None,
-    user_id: int = Depends(verify_token),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """记录研究进度"""
     project = db.query(ResearchProject).filter(
         ResearchProject.id == project_id,
-        ResearchProject.user_id == user_id
+        ResearchProject.user_id == current_user.id
     ).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -110,13 +111,13 @@ def add_innovation_point(
     title: str,
     description: str,
     implementation_status: Optional[str] = None,
-    user_id: int = Depends(verify_token),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """添加创新点"""
     project = db.query(ResearchProject).filter(
         ResearchProject.id == project_id,
-        ResearchProject.user_id == user_id
+        ResearchProject.user_id == current_user.id
     ).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")

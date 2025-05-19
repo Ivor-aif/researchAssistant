@@ -1,6 +1,6 @@
 import React, { lazy, Suspense, useMemo, useCallback } from 'react';
-import { Layout, Menu, Spin, Typography, Avatar, Space, Divider } from 'antd';
-import { Link, Outlet } from 'react-router-dom';
+import { Layout, Menu, Spin, Typography, Avatar, Space, Divider, Dropdown, Button } from 'antd';
+import { Link, Outlet, useNavigate } from 'react-router-dom';
 import {
   FileSearchOutlined,
   BulbOutlined,
@@ -8,14 +8,35 @@ import {
   ExperimentOutlined,
   FileTextOutlined,
   UserOutlined,
-  RobotOutlined
+  RobotOutlined,
+  LogoutOutlined,
+  LoginOutlined
 } from '@ant-design/icons';
+import { useAuth } from '../../contexts/AuthContext';
 
 const { Header, Content, Sider, Footer } = Layout;
 const { Title, Text } = Typography;
 
 // 使用React.memo包装纯展示型组件
-const AppHeader = React.memo(() => (
+const AppHeader = React.memo(() => {
+  const { user, isAuthenticated, logout } = useAuth();
+  const navigate = useNavigate();
+  
+  const handleLogout = () => {
+    logout();
+    navigate('/auth');
+  };
+  
+  const userMenuItems = [
+    {
+      key: 'logout',
+      icon: <LogoutOutlined />,
+      label: '退出登录',
+      onClick: handleLogout
+    }
+  ];
+  
+  return (
   <Header style={{ 
     padding: '0 24px', 
     background: '#1890ff', 
@@ -33,10 +54,29 @@ const AppHeader = React.memo(() => (
       <Title level={4} style={{ margin: 0, color: '#fff' }}>AI 研究助手</Title>
     </div>
     <Space>
-      <Avatar style={{ backgroundColor: '#f56a00' }}>U</Avatar>
+      {isAuthenticated ? (
+        <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
+          <Space style={{ cursor: 'pointer' }}>
+            <Avatar style={{ backgroundColor: '#f56a00' }}>
+              {user?.username.charAt(0).toUpperCase()}
+            </Avatar>
+            <Typography.Text style={{ color: '#fff' }}>{user?.username}</Typography.Text>
+          </Space>
+        </Dropdown>
+      ) : (
+        <Button 
+          type="link" 
+          icon={<LoginOutlined />} 
+          style={{ color: '#fff' }}
+          onClick={() => navigate('/auth')}
+        >
+          登录
+        </Button>
+      )}
     </Space>
   </Header>
-));
+);
+});
 
 // 使用React.memo优化侧边栏菜单
 const SideMenu = React.memo(({ menuItems, defaultSelectedKey }: { menuItems: any[], defaultSelectedKey: string }) => (
@@ -46,7 +86,8 @@ const SideMenu = React.memo(({ menuItems, defaultSelectedKey }: { menuItems: any
       background: '#fff',
       boxShadow: '2px 0 8px 0 rgba(29,35,41,.05)',
       zIndex: 10,
-      height: '100%'
+      height: '100%',
+      overflow: 'auto'
     }}
   >
     <div style={{ padding: '16px 0', textAlign: 'center' }}>
@@ -77,7 +118,8 @@ const ContentArea = React.memo(() => (
     width: '100%', // 确保内容区域占满可用宽度
     flex: 1, // 添加弹性布局，使内容区域自动填充可用空间
     display: 'flex', // 添加弹性布局
-    flexDirection: 'column' // 设置垂直方向布局
+    flexDirection: 'column', // 设置垂直方向布局
+    overflow: 'auto' // 添加滚动条，防止内容溢出
   }}>
     <div style={{
       background: '#fff',
@@ -88,7 +130,8 @@ const ContentArea = React.memo(() => (
       width: '100%', // 确保内容容器占满父元素宽度
       flex: 1, // 添加弹性布局，使内容区域自动填充可用空间
       display: 'flex', // 添加弹性布局
-      flexDirection: 'column' // 设置垂直方向布局
+      flexDirection: 'column', // 设置垂直方向布局
+      overflow: 'auto' // 添加滚动条，防止内容溢出
     }}>
       <Suspense fallback={
         <div style={{ 
@@ -145,9 +188,9 @@ const OptimizedMainLayout: React.FC = () => {
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <AppHeader />
-      <Layout style={{ display: 'flex', flexDirection: 'row', width: '100%' }}>
+      <Layout style={{ display: 'flex', flexDirection: 'row', width: '100%', height: 'calc(100vh - 64px)', overflow: 'hidden' }}>
         <SideMenu menuItems={menuItems} defaultSelectedKey="paper-search" />
-        <Layout style={{ background: '#f0f2f5', flex: 1, width: '100%' }}>
+        <Layout style={{ background: '#f0f2f5', flex: 1, width: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <ContentArea />
           <Footer style={{ 
             textAlign: 'center', 

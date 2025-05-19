@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from typing import Dict, Any
 from ..models.user import User
 from ..models.research import Research
-from ..security import get_current_user
+from ..routers.auth import get_current_user
 from ..ai.vision_api import VisionAPI
 from ..ai.paper_recommendation import PaperRecommendation
 from ..ai.research_analysis import ResearchAnalysis

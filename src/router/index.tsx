@@ -1,6 +1,7 @@
 import React, { lazy, Suspense } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import OptimizedMainLayout from '../components/layout/OptimizedMainLayout';
+import ProtectedRoute from './ProtectedRoute';
 
 // 使用懒加载优化页面加载性能
 const Auth = lazy(() => import('../pages/Auth'));
@@ -25,23 +26,23 @@ const router = createBrowserRouter([
       },
       {
         path: 'paper-search',
-        element: <Suspense fallback={<div>加载中...</div>}><PaperSearch /></Suspense>
+        element: <ProtectedRoute><Suspense fallback={<div>加载中...</div>}><PaperSearch /></Suspense></ProtectedRoute>
       },
       {
         path: 'innovation-analysis',
-        element: <Suspense fallback={<div>加载中...</div>}><InnovationAnalysis /></Suspense>
+        element: <ProtectedRoute><Suspense fallback={<div>加载中...</div>}><InnovationAnalysis /></Suspense></ProtectedRoute>
       },
       {
         path: 'research-progress',
-        element: <Suspense fallback={<div>加载中...</div>}><ResearchProgress /></Suspense>
+        element: <ProtectedRoute><Suspense fallback={<div>加载中...</div>}><ResearchProgress /></Suspense></ProtectedRoute>
       },
       {
         path: 'paper-reproduction',
-        element: <Suspense fallback={<div>加载中...</div>}><PaperReproduction /></Suspense>
+        element: <ProtectedRoute><Suspense fallback={<div>加载中...</div>}><PaperReproduction /></Suspense></ProtectedRoute>
       },
       {
         path: 'report',
-        element: <Suspense fallback={<div>加载中...</div>}><Report /></Suspense>
+        element: <ProtectedRoute><Suspense fallback={<div>加载中...</div>}><Report /></Suspense></ProtectedRoute>
       }
     ]
   }
