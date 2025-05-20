@@ -61,7 +61,15 @@ api.interceptors.response.use(
 // 论文检索相关API
 export const paperApi = {
   // 搜索论文
-  searchPapers: (query: string) => api.get('/research/papers', { params: { query } }),
+  searchPapers: (query: string, sources?: string[]) => api.get('/research/papers', { 
+    params: { query, sources: sources?.join(',') } 
+  }),
+  // 从arXiv搜索论文
+  searchArxiv: (query: string) => api.get('/research/papers/arxiv', { params: { query } }),
+  // 从自定义源搜索论文
+  searchCustomSource: (query: string, sourceUrl: string) => api.get('/research/papers/custom', { 
+    params: { query, source_url: sourceUrl } 
+  }),
   // 获取论文详情
   getPaperDetail: (id: string) => api.get(`/research/papers/${id}`),
   // 保存论文

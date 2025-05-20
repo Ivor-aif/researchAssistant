@@ -44,8 +44,7 @@ def read_users_me(current_user: User = Depends(get_current_user)) -> Dict:
     """获取当前登录用户信息"""
     return {
         "id": current_user.id,
-        "username": current_user.username,
-        "email": current_user.email
+        "username": current_user.username
     }
 
 @router.post("/register")

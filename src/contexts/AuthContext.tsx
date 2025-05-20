@@ -1,11 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { message } from 'antd';
-import axios from 'axios';
+// 移除axios导入，因为我们将使用本地存储
 
 interface User {
   id: number;
   username: string;
-  email: string;
 }
 
 interface AuthContextType {
@@ -13,7 +12,7 @@ interface AuthContextType {
   token: string | null;
   isAuthenticated: boolean;
   login: (username: string, password: string) => Promise<boolean>;
-  register: (username: string, email: string, password: string) => Promise<boolean>;
+  register: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
 }
 
@@ -51,38 +50,32 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // 登录函数
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
-      const response = await axios.post(
-        `${import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api'}/auth/token`,
-        new URLSearchParams({
-          username,
-          password,
-        }),
-        {
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-        }
-      );
-
-      const { access_token } = response.data;
+      // 从本地存储获取用户信息
+      const storedUsers = localStorage.getItem('users');
+      const users = storedUsers ? JSON.parse(storedUsers) : [];
       
-      // 获取用户信息
-      const userResponse = await axios.get(
-        `${import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api'}/auth/me`,
-        {
-          headers: {
-            Authorization: `Bearer ${access_token}`,
-          },
-        }
+      // 查找匹配的用户
+      const user = users.find((u: any) => 
+        u.username === username && u.password === password
       );
-
-      const userData = userResponse.data;
+      
+      if (!user) {
+        message.error('登录失败，请检查用户名和密码');
+        return false;
+      }
+      
+      // 创建模拟的token和用户数据
+      const mockToken = `local_token_${Date.now()}`;
+      const userData = {
+        id: user.id,
+        username: user.username
+      };
       
       // 保存认证信息
-      localStorage.setItem('token', access_token);
+      localStorage.setItem('token', mockToken);
       localStorage.setItem('user', JSON.stringify(userData));
       
-      setToken(access_token);
+      setToken(mockToken);
       setUser(userData);
       setIsAuthenticated(true);
       
@@ -98,20 +91,34 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // 注册函数
   const register = async (username: string, password: string): Promise<boolean> => {
     try {
-      const response = await axios.post(
-        `${import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api'}/auth/register`,
-        { username, password }
-      );
+      // 从本地存储获取现有用户
+      const storedUsers = localStorage.getItem('users');
+      const users = storedUsers ? JSON.parse(storedUsers) : [];
+      
+      // 检查用户名是否已存在
+      if (users.some((user: any) => user.username === username)) {
+        message.error('用户名已存在，请使用其他用户名');
+        return false;
+      }
+      
+      // 创建新用户
+      const newUser = {
+        id: Date.now(), // 使用时间戳作为ID
+        username,
+        password // 注意：实际应用中应该加密密码
+      };
+      
+      // 将新用户添加到用户列表
+      users.push(newUser);
+      
+      // 保存到本地存储
+      localStorage.setItem('users', JSON.stringify(users));
       
       message.success('注册成功，请登录');
       return true;
     } catch (error: any) {
       console.error('注册失败:', error);
-      if (error.response && error.response.data && error.response.data.detail) {
-        message.error(`注册失败: ${error.response.data.detail}`);
-      } else {
-        message.error('注册失败，请稍后重试');
-      }
+      message.error('注册失败，请稍后重试');
       return false;
     }
   };

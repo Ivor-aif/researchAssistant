@@ -3,6 +3,7 @@ import { RouterProvider } from 'react-router-dom';
 import { ConfigProvider } from 'antd';
 import router from './router';
 import { AuthProvider } from './contexts/AuthContext';
+import { PaperSearchProvider } from './contexts/PaperSearchContext';
 import './App.css';
 
 // 自定义主题配置
@@ -36,7 +37,9 @@ function App() {
   return (
     <ConfigProvider theme={themeConfig}>
       <AuthProvider>
-        <RouterProvider router={router} />
+        <PaperSearchProvider>
+          <RouterProvider router={router} />
+        </PaperSearchProvider>
       </AuthProvider>
     </ConfigProvider>
   );
