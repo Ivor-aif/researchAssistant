@@ -1,4 +1,4 @@
-import { Paper } from './paperSearchService';
+import type { Paper } from '../types/paper';
 import { message } from 'antd';
 
 // 本地存储键名

@@ -1,34 +1,7 @@
 import axios from 'axios';
 import { message } from 'antd';
+import type { Paper } from '../types/paper';
 
-// 论文接口定义
-export interface Paper {
-  id: string;
-  title: string;
-  authors: string[];
-  abstract: string;
-  keywords: string[];
-  year: number;
-  journal: string;
-  citations: number;
-  source?: string; // 论文来源
-  url?: string; // 论文链接
-  isFavorite?: boolean; // 是否已收藏
-}
-
-// arXiv API 响应接口
-interface ArxivResponse {
-  feed: {
-    entry: Array<{
-      id: string;
-      title: string;
-      author: Array<{ name: string }>;
-      summary: string;
-      published: string;
-      category?: Array<{ term: string }>;
-    }>;
-  };
-}
 
 /**
  * 从arXiv搜索论文
@@ -174,3 +147,5 @@ export const searchFromMultipleSources = async (
     return [];
   }
 };
+
+// Paper接口已在顶部导出，无需重复导出

@@ -6,14 +6,11 @@ import PageHeader from '../../components/common/PageHeader';
 import theme from '../../theme';
 import { usePaperSearch } from '../../contexts/PaperSearchContext';
 import { searchFromMultipleSources } from '../../services/paperSearchService';
-import type { Paper as PaperType } from '../../services/paperSearchService';
+import type { Paper } from '../../types/paper';
 import { toggleFavorite, loadFavoriteStatus } from '../../services/favoriteService';
 
 const { Search } = Input;
 const { Text } = Typography;
-
-// 直接使用导入的Paper类型
-type Paper = PaperType;
 
 const PaperSearch: React.FC = () => {
   const [papers, setPapers] = useState<Paper[]>([]);
