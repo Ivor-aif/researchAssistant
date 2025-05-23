@@ -10,7 +10,8 @@ import {
   UserOutlined,
   RobotOutlined,
   LogoutOutlined,
-  LoginOutlined
+  LoginOutlined,
+  SettingOutlined
 } from '@ant-design/icons';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -28,6 +29,21 @@ const AppHeader = React.memo(() => {
   };
   
   const userMenuItems = [
+    {
+      key: 'profile',
+      icon: <UserOutlined />,
+      label: '用户信息',
+      onClick: () => navigate('/auth')
+    },
+    {
+      key: 'settings',
+      icon: <SettingOutlined />,
+      label: '账户设置',
+      onClick: () => {
+        // 导航到用户页面并显示设置界面
+        navigate('/auth?settings=true');
+      }
+    },
     {
       key: 'logout',
       icon: <LogoutOutlined />,

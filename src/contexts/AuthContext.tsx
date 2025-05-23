@@ -5,6 +5,7 @@ import { message } from 'antd';
 interface User {
   id: number;
   username: string;
+  avatarUrl?: string;
 }
 
 interface AuthContextType {
@@ -133,6 +134,47 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     message.success('已退出登录');
   };
 
+  // 更新用户信息函数
+  const updateUser = (updates: Partial<User & { avatarUrl?: string }>): boolean => {
+    try {
+      if (!user) {
+        message.error('未登录，无法更新用户信息');
+        return false;
+      }
+
+      // 从本地存储获取用户信息
+      const storedUsers = localStorage.getItem('users');
+      const users = storedUsers ? JSON.parse(storedUsers) : [];
+      
+      // 查找当前用户
+      const currentUserIndex = users.findIndex((u: any) => u.id === user.id);
+      
+      if (currentUserIndex === -1) {
+        message.error('用户信息获取失败');
+        return false;
+      }
+      
+      // 更新用户信息
+      const updatedUser = { ...users[currentUserIndex], ...updates };
+      users[currentUserIndex] = updatedUser;
+      
+      // 保存到本地存储
+      localStorage.setItem('users', JSON.stringify(users));
+      
+      // 更新当前用户状态
+      const updatedUserData = { ...user, ...updates };
+      localStorage.setItem('user', JSON.stringify(updatedUserData));
+      setUser(updatedUserData);
+      
+      message.success('用户信息已更新');
+      return true;
+    } catch (error) {
+      console.error('更新用户信息失败:', error);
+      message.error('更新用户信息失败');
+      return false;
+    }
+  };
+
   const value = {
     user,
     token,
@@ -140,6 +182,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     login,
     register,
     logout,
+    updateUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
