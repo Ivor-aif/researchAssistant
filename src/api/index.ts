@@ -78,10 +78,21 @@ export const paperApi = {
 
 // 创新点分析相关API
 export const innovationApi = {
-  // 分析论文创新点
+  // 分析论文创新点（通过ID/DOI）
   analyzeInnovation: (paperId: string) => api.post('/research/innovation/analyze', { paper_id: paperId }),
+  // 分析上传文件的创新点
+  analyzeFileInnovation: (formData: FormData) => {
+    return api.post('/ai/extract-innovations-file', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      },
+      timeout: 60000 // 增加超时时间到60秒
+    });
+  },
   // 获取创新点列表
-  getInnovationPoints: (projectId: string) => api.get(`/research/innovation/points/${projectId}`)
+  getInnovationPoints: (projectId: string) => api.get(`/research/innovation/points/${projectId}`),
+  // 分析创新点可行性
+  analyzeFeasibility: (innovation: any) => api.post('/ai/analyze-feasibility', innovation)
 };
 
 // 研究进度相关API

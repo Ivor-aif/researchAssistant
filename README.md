@@ -74,7 +74,7 @@ python src/main.py
 
 欢迎提交问题和改进建议！请查看我们的贡献指南了解详情。
 
-本项目由 Trae AI 助手（包含 Claude-3.5/3.7-Sonnet 大模型）提供支持。
+本项目由 Trae AI 助手（包含 Claude-3.5/3.7/4-Sonnet 大模型）提供支持。
 
 ## 许可证
 
