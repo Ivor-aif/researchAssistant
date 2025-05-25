@@ -1,10 +1,11 @@
+import os
 from typing import List, Dict, Any
 from openai import OpenAI
 from ..models.research import Research
 
 class ResearchAnalysis:
     def __init__(self):
-        self.client = OpenAI()
+        self.client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
     async def analyze_research_direction(self, research: Research) -> Dict[str, Any]:
         """分析研究方向的发展趋势和潜在机会

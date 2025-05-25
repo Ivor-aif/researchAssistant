@@ -1,3 +1,4 @@
+import os
 from typing import List, Dict, Any
 from openai import OpenAI
 from ..models.research import Research
@@ -5,7 +6,7 @@ from ..models.user import User
 
 class PaperRecommendation:
     def __init__(self):
-        self.client = OpenAI()
+        self.client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
     async def recommend_papers(self, user: User, research: Research) -> Dict[str, Any]:
         """基于用户研究方向和历史记录推荐相关论文

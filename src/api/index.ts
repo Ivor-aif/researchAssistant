@@ -86,7 +86,7 @@ export const innovationApi = {
       headers: {
         'Content-Type': 'multipart/form-data'
       },
-      timeout: 60000 // 增加超时时间到60秒
+      timeout: 180000 // 增加超时时间到180秒
     });
   },
   // 获取创新点列表

@@ -159,6 +159,9 @@ const InnovationAnalysis: React.FC = () => {
       updateProgress('解析文件内容', 100, 'completed');
       updateProgress('AI分析创新点', 40, 'processing');
       
+      // 提示用户分析可能需要较长时间
+      message.info('正在分析文件，这可能需要2-3分钟，请耐心等待...');
+      
       // 调用后端API进行文件分析
       const response = await innovationApi.analyzeFileInnovation(formData);
       
@@ -169,6 +172,7 @@ const InnovationAnalysis: React.FC = () => {
         setInnovationPoints(response.innovations || []);
         message.success(`成功从文件中识别出 ${response.innovations?.length || 0} 个创新点`);
       } else {
+        console.error('API返回错误:', response);
         throw new Error(response.error || '文件分析失败');
       }
     } catch (error) {
