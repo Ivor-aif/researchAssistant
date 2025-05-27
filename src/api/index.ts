@@ -1,29 +1,29 @@
 import axios from 'axios';
+import { Paper, PaperSearchParams, InnovationPoint, UserProfile, ApiKeys } from '../types';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 // 创建axios实例
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api',
-  timeout: 10000,
+  baseURL: API_BASE_URL,
+  timeout: 30000, // 默认30秒超时
   headers: {
-    'Content-Type': 'application/json'
-  }
+    'Content-Type': 'application/json',
+  },
 });
 
-// 开发环境下的错误处理
-if (import.meta.env.DEV) {
-  console.log('API运行在开发环境，API基础URL:', api.defaults.baseURL);
-}
-
-// 请求拦截器 - 可以在这里添加认证token等
+// 请求拦截器，添加token
 api.interceptors.request.use(
-  config => {
+  (config) => {
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },
-  error => Promise.reject(error)
+  (error) => {
+    return Promise.reject(error);
+  }
 );
 
 // 响应拦截器
@@ -35,24 +35,67 @@ api.interceptors.response.use(
       console.error('API请求错误:', error.message);
     }
     
-    // 根据错误状态码处理不同情况
-    if (error.response) {
-      // 服务器返回了错误状态码
-      const status = error.response.status;
-      if (status === 401) {
-        // 未授权，可能需要重新登录
-        console.warn('用户未授权，请重新登录');
-      } else if (status === 404) {
-        // 资源不存在
-        console.warn('请求的资源不存在');
-      } else if (status >= 500) {
-        // 服务器错误
-        console.warn('服务器错误，请稍后再试');
+    // 导入message组件
+    import('antd').then(({ message }) => {
+      // 根据错误状态码处理不同情况
+      if (error.response) {
+        // 服务器返回了错误状态码
+        const status = error.response.status;
+        const errorData = error.response.data;
+        
+        // 获取错误信息
+        let errorMessage = '操作失败';
+        
+        // 尝试从响应中提取错误信息
+        if (errorData) {
+          if (errorData.error && errorData.error.message) {
+            errorMessage = errorData.error.message;
+          } else if (errorData.message) {
+            errorMessage = errorData.message;
+          } else if (errorData.error) {
+            errorMessage = typeof errorData.error === 'string' ? errorData.error : '操作失败';
+          } else if (errorData.detail) {
+            errorMessage = errorData.detail;
+          }
+        }
+        
+        if (status === 401) {
+          // 未授权，可能需要重新登录
+          setTimeout(() => {
+            message.error('用户未授权，请重新登录');
+          }, 100);
+          console.warn('用户未授权，请重新登录');
+        } else if (status === 404) {
+          // 资源不存在
+          setTimeout(() => {
+            message.error('请求的资源不存在');
+          }, 100);
+          console.warn('请求的资源不存在');
+        } else if (status >= 500) {
+          // 服务器错误
+          setTimeout(() => {
+            message.error(`服务器错误: ${errorMessage}`);
+          }, 100);
+          console.warn('服务器错误，请稍后再试');
+        } else {
+          // 其他错误
+          setTimeout(() => {
+            message.error(errorMessage);
+          }, 100);
+        }
+      } else if (error.request) {
+        // 请求已发送但没有收到响应
+        setTimeout(() => {
+          message.error('无法连接到服务器，请检查网络连接');
+        }, 100);
+        console.warn('无法连接到服务器，请检查网络连接');
+      } else {
+        // 其他错误
+        setTimeout(() => {
+          message.error(`请求错误: ${error.message}`);
+        }, 100);
       }
-    } else if (error.request) {
-      // 请求已发送但没有收到响应
-      console.warn('无法连接到服务器，请检查网络连接');
-    }
+    });
     
     return Promise.reject(error);
   }
@@ -119,9 +162,32 @@ export const reportApi = {
   downloadReport: (reportData: any) => api.post('/research/report/download', reportData)
 };
 
+// 用户相关API
+export const userApi = {
+  // 获取当前用户信息
+  getCurrentUser: () => api.get('/auth/me'),
+  // 更新用户个人资料
+  updateProfile: (profileData: Partial<UserProfile>) => api.post('/auth/update-profile', profileData),
+  // 更新密码
+  updatePassword: (currentPassword: string, newPassword: string) => api.post('/auth/update-password', {
+    current_password: currentPassword,
+    new_password: newPassword
+  })
+};
+
+// AI服务相关API
+export const aiApi = {
+  // 获取API密钥
+  getApiKeys: () => api.get('/ai/api-keys'),
+  // 更新API密钥
+  updateApiKeys: (apiKeys: Partial<ApiKeys>) => api.post('/ai/api-keys', apiKeys)
+};
+
 export default {
   paperApi,
   innovationApi,
   progressApi,
-  reportApi
+  reportApi,
+  userApi,
+  aiApi
 };

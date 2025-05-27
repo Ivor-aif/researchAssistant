@@ -38,9 +38,32 @@ const ResearchProgress: React.FC = () => {
         }));
         setMilestones(formattedMilestones);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('获取研究进度失败:', error);
-      message.error('获取研究进度失败，请稍后重试');
+      
+      // 获取详细错误信息
+      let errorMessage = '获取研究进度失败，请稍后重试';
+      
+      // 尝试从错误对象中提取更详细的错误信息
+      if (error.response && error.response.data) {
+        const errorData = error.response.data;
+        if (errorData.error && errorData.error.message) {
+          errorMessage = errorData.error.message;
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        } else if (errorData.error) {
+          errorMessage = typeof errorData.error === 'string' ? errorData.error : errorMessage;
+        } else if (errorData.detail) {
+          errorMessage = errorData.detail;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      // 显示错误信息
+      setTimeout(() => {
+        message.error(`获取失败: ${errorMessage}`);
+      }, 100);
     } finally {
       setLoading(false);
     }
@@ -76,9 +99,32 @@ const ResearchProgress: React.FC = () => {
       
       // 重新获取最新数据
       fetchResearchProgress();
-    } catch (error) {
+    } catch (error: any) {
       console.error('添加里程碑失败:', error);
-      message.error('添加里程碑失败，请稍后重试');
+      
+      // 获取详细错误信息
+      let errorMessage = '添加里程碑失败，请稍后重试';
+      
+      // 尝试从错误对象中提取更详细的错误信息
+      if (error.response && error.response.data) {
+        const errorData = error.response.data;
+        if (errorData.error && errorData.error.message) {
+          errorMessage = errorData.error.message;
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        } else if (errorData.error) {
+          errorMessage = typeof errorData.error === 'string' ? errorData.error : errorMessage;
+        } else if (errorData.detail) {
+          errorMessage = errorData.detail;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      // 显示错误信息
+      setTimeout(() => {
+        message.error(`添加失败: ${errorMessage}`);
+      }, 100);
     }
   };
 

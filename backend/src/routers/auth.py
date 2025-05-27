@@ -42,10 +42,54 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
 @router.get("/me")
 def read_users_me(current_user: User = Depends(get_current_user)) -> Dict:
     """获取当前登录用户信息"""
-    return {
+    user_info = {
         "id": current_user.id,
-        "username": current_user.username
+        "username": current_user.username,
+        "author_name": current_user.author_name,
+        "author_email": current_user.author_email,
+        "author_website": current_user.author_website
     }
+    return user_info
+
+@router.post("/update-profile")
+def update_profile(
+    profile_data: Dict[str, Any],
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> Dict:
+    """更新用户个人资料，包括署名信息"""
+    try:
+        # 更新用户名
+        if "username" in profile_data and profile_data["username"] != current_user.username:
+            # 检查用户名是否已存在
+            existing_user = db.query(User).filter(User.username == profile_data["username"]).first()
+            if existing_user:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Username already exists"
+                )
+            current_user.username = profile_data["username"]
+        
+        # 更新署名信息
+        if "author_name" in profile_data:
+            current_user.author_name = profile_data["author_name"]
+        
+        if "author_email" in profile_data:
+            current_user.author_email = profile_data["author_email"]
+        
+        if "author_website" in profile_data:
+            current_user.author_website = profile_data["author_website"]
+        
+        # 保存到数据库
+        db.commit()
+        
+        return {"success": True, "message": "Profile updated successfully"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update profile: {str(e)}"
+        )
 
 @router.post("/register")
 def register(username: str, password: str, db: Session = Depends(get_db)) -> Any:

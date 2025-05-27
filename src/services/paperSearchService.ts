@@ -63,9 +63,30 @@ export const searchArxiv = async (query: string): Promise<Paper[]> => {
         isFavorite: false
       };
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('从arXiv搜索论文失败:', error);
-    message.error('从arXiv搜索论文失败，请稍后重试');
+    
+    // 获取详细错误信息
+    let errorMessage = '请稍后重试';
+    
+    // 尝试从错误对象中提取更详细的错误信息
+    if (error.response && error.response.data) {
+      const errorData = error.response.data;
+      if (errorData.error && errorData.error.message) {
+        errorMessage = errorData.error.message;
+      } else if (errorData.message) {
+        errorMessage = errorData.message;
+      } else if (errorData.error) {
+        errorMessage = typeof errorData.error === 'string' ? errorData.error : errorMessage;
+      } else if (errorData.detail) {
+        errorMessage = errorData.detail;
+      }
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    // 显示错误信息
+    message.error(`从arXiv搜索论文失败: ${errorMessage}`);
     return [];
   }
 };
@@ -103,9 +124,30 @@ export const searchCustomSource = async (query: string, sourceUrl: string, sourc
     await new Promise(resolve => setTimeout(resolve, 1000));
     
     return mockPapers;
-  } catch (error) {
+  } catch (error: any) {
     console.error(`从${sourceName}搜索论文失败:`, error);
-    message.error(`从${sourceName}搜索论文失败，请稍后重试`);
+    
+    // 获取详细错误信息
+    let errorMessage = '请稍后重试';
+    
+    // 尝试从错误对象中提取更详细的错误信息
+    if (error.response && error.response.data) {
+      const errorData = error.response.data;
+      if (errorData.error && errorData.error.message) {
+        errorMessage = errorData.error.message;
+      } else if (errorData.message) {
+        errorMessage = errorData.message;
+      } else if (errorData.error) {
+        errorMessage = typeof errorData.error === 'string' ? errorData.error : errorMessage;
+      } else if (errorData.detail) {
+        errorMessage = errorData.detail;
+      }
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    // 显示错误信息
+    message.error(`从${sourceName}搜索论文失败: ${errorMessage}`);
     return [];
   }
 };
@@ -141,9 +183,30 @@ export const searchFromMultipleSources = async (
     const allPapers = resultsArray.flat();
     
     return allPapers;
-  } catch (error) {
+  } catch (error: any) {
     console.error('多源搜索失败:', error);
-    message.error('论文检索失败，请稍后重试');
+    
+    // 获取详细错误信息
+    let errorMessage = '请稍后重试';
+    
+    // 尝试从错误对象中提取更详细的错误信息
+    if (error.response && error.response.data) {
+      const errorData = error.response.data;
+      if (errorData.error && errorData.error.message) {
+        errorMessage = errorData.error.message;
+      } else if (errorData.message) {
+        errorMessage = errorData.message;
+      } else if (errorData.error) {
+        errorMessage = typeof errorData.error === 'string' ? errorData.error : errorMessage;
+      } else if (errorData.detail) {
+        errorMessage = errorData.detail;
+      }
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    // 显示错误信息
+    message.error(`论文检索失败: ${errorMessage}`);
     return [];
   }
 };

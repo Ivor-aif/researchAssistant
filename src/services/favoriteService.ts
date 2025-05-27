@@ -40,9 +40,30 @@ export const addToFavorites = (paper: Paper): boolean => {
     
     message.success('论文已添加到收藏');
     return true;
-  } catch (error) {
+  } catch (error: any) {
     console.error('添加收藏失败:', error);
-    message.error('添加收藏失败');
+    
+    // 获取详细错误信息
+    let errorMessage = '添加收藏失败';
+    
+    // 尝试从错误对象中提取更详细的错误信息
+    if (error.response && error.response.data) {
+      const errorData = error.response.data;
+      if (errorData.error && errorData.error.message) {
+        errorMessage = errorData.error.message;
+      } else if (errorData.message) {
+        errorMessage = errorData.message;
+      } else if (errorData.error) {
+        errorMessage = typeof errorData.error === 'string' ? errorData.error : errorMessage;
+      } else if (errorData.detail) {
+        errorMessage = errorData.detail;
+      }
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    // 显示错误信息
+    message.error(errorMessage);
     return false;
   }
 };
@@ -60,9 +81,30 @@ export const removeFromFavorites = (paperId: string): boolean => {
     localStorage.setItem(FAVORITE_PAPERS_KEY, JSON.stringify(updatedFavorites));
     message.success('已从收藏中移除');
     return true;
-  } catch (error) {
+  } catch (error: any) {
     console.error('移除收藏失败:', error);
-    message.error('移除收藏失败');
+    
+    // 获取详细错误信息
+    let errorMessage = '移除收藏失败';
+    
+    // 尝试从错误对象中提取更详细的错误信息
+    if (error.response && error.response.data) {
+      const errorData = error.response.data;
+      if (errorData.error && errorData.error.message) {
+        errorMessage = errorData.error.message;
+      } else if (errorData.message) {
+        errorMessage = errorData.message;
+      } else if (errorData.error) {
+        errorMessage = typeof errorData.error === 'string' ? errorData.error : errorMessage;
+      } else if (errorData.detail) {
+        errorMessage = errorData.detail;
+      }
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    // 显示错误信息
+    message.error(errorMessage);
     return false;
   }
 };

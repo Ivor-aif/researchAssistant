@@ -41,9 +41,32 @@ const Report: React.FC = () => {
         setReportContent(formattedReport);
         message.success('报告生成成功');
       }
-    } catch (error) {
-      message.error('报告生成失败');
+    } catch (error: any) {
       console.error('生成失败:', error);
+      
+      // 获取详细错误信息
+      let errorMessage = '报告生成失败';
+      
+      // 尝试从错误对象中提取更详细的错误信息
+      if (error.response && error.response.data) {
+        const errorData = error.response.data;
+        if (errorData.error && errorData.error.message) {
+          errorMessage = errorData.error.message;
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        } else if (errorData.error) {
+          errorMessage = typeof errorData.error === 'string' ? errorData.error : errorMessage;
+        } else if (errorData.detail) {
+          errorMessage = errorData.detail;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      // 显示错误信息
+      setTimeout(() => {
+        message.error(`生成失败: ${errorMessage}`);
+      }, 100);
     } finally {
       setGenerating(false);
     }
@@ -73,9 +96,32 @@ const Report: React.FC = () => {
       } else {
         message.error('下载链接无效');
       }
-    } catch (error) {
-      message.error('报告下载失败');
+    } catch (error: any) {
       console.error('下载失败:', error);
+      
+      // 获取详细错误信息
+      let errorMessage = '报告下载失败';
+      
+      // 尝试从错误对象中提取更详细的错误信息
+      if (error.response && error.response.data) {
+        const errorData = error.response.data;
+        if (errorData.error && errorData.error.message) {
+          errorMessage = errorData.error.message;
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        } else if (errorData.error) {
+          errorMessage = typeof errorData.error === 'string' ? errorData.error : errorMessage;
+        } else if (errorData.detail) {
+          errorMessage = errorData.detail;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      // 显示错误信息
+      setTimeout(() => {
+        message.error(`下载失败: ${errorMessage}`);
+      }, 100);
     }
   };
 

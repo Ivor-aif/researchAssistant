@@ -4,6 +4,7 @@ import os
 import tempfile
 import PyPDF2
 from bs4 import BeautifulSoup
+import json
 from ..ai.innovation_extraction import InnovationExtraction
 
 # 条件导入数据库相关模块
@@ -14,6 +15,8 @@ try:
     from ..ai.vision_api import VisionAPI
     from ..ai.paper_recommendation import PaperRecommendation
     from ..ai.research_analysis import ResearchAnalysis
+    from ..database import get_db
+    from sqlalchemy.orm import Session
     HAS_AUTH = True
 except ImportError:
     HAS_AUTH = False
@@ -97,6 +100,55 @@ async def extract_innovations_from_file(
         # 检查文件类型
         if file.content_type not in ['application/pdf', 'text/html', 'text/plain'] and not file.filename.endswith('.html') and not file.filename.endswith('.pdf') and not file.filename.endswith('.txt'):
             raise HTTPException(status_code=400, detail="只支持PDF、HTML和TXT格式的文件")
+
+# API密钥管理接口
+if HAS_AUTH:
+    @router.post("/api-keys")
+    async def update_api_keys(
+        api_keys: Dict[str, Any],
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db)
+    ) -> Dict[str, Any]:
+        """更新用户的API密钥"""
+        try:
+            # 更新OpenAI API密钥
+            if "openai_api_key" in api_keys:
+                current_user.openai_api_key = api_keys["openai_api_key"]
+            
+            # 更新其他API密钥
+            if "other_api_keys" in api_keys:
+                current_user.other_ai_api_keys = json.dumps(api_keys["other_api_keys"])
+            
+            # 保存到数据库
+            db.commit()
+            
+            return {"success": True, "message": "API密钥已更新"}
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"更新API密钥失败: {str(e)}")
+    
+    @router.get("/api-keys")
+    async def get_api_keys(
+        current_user: User = Depends(get_current_user)
+    ) -> Dict[str, Any]:
+        """获取用户的API密钥"""
+        try:
+            result = {"openai_api_key": current_user.openai_api_key or ""}
+            
+            # 解析其他API密钥
+            if current_user.other_ai_api_keys:
+                try:
+                    result["other_api_keys"] = json.loads(current_user.other_ai_api_keys)
+                except json.JSONDecodeError:
+                    result["other_api_keys"] = {}
+            else:
+                result["other_api_keys"] = {}
+                
+            return result
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"获取API密钥失败: {str(e)}")
+            
+
         
         # 检查文件大小（10MB限制）
         file_size = 0
