@@ -1,48 +1,51 @@
-import React from 'react';
-import { RouterProvider } from 'react-router-dom';
-import { ConfigProvider } from 'antd';
-import router from './router';
-import { AuthProvider } from './contexts/AuthContext';
-import { PaperSearchProvider } from './contexts/PaperSearchContext';
-import './App.css';
-
-// 自定义主题配置
-const themeConfig = {
-  token: {
-    colorPrimary: '#1890ff',
-    colorSuccess: '#52c41a',
-    colorWarning: '#faad14',
-    colorError: '#f5222d',
-    colorInfo: '#1890ff',
-    borderRadius: 8,
-    wireframe: false,
-  },
-  components: {
-    Layout: {
-      bodyBg: '#f0f2f5',
-      headerBg: '#1890ff',
-      headerHeight: 64,
-      headerPadding: '0 24px',
-    },
-    Card: {
-      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
-    },
-    Button: {
-      primaryShadow: 'none',
-    },
-  },
-};
+import { ConfigProvider, theme } from 'antd'
+import { RouterProvider } from 'react-router-dom'
+import router from './router'
+import { AuthProvider } from './contexts/AuthContext'
+import { PaperSearchProvider } from './contexts/PaperSearchContext'
+import './App.css'
 
 function App() {
+  // 调试输出
+  console.log('🚀 App.tsx - 应用组件开始渲染')
+
   return (
-    <ConfigProvider theme={themeConfig}>
-      <AuthProvider>
-        <PaperSearchProvider>
-          <RouterProvider router={router} />
-        </PaperSearchProvider>
-      </AuthProvider>
+    <ConfigProvider
+      theme={{
+        algorithm: theme.defaultAlgorithm,
+        token: {
+          colorPrimary: '#1677ff',
+          colorSuccess: '#52c41a',
+          colorWarning: '#faad14',
+          colorError: '#ff4d4f',
+          colorInfo: '#1677ff',
+          borderRadius: 6,
+        },
+        components: {
+          Layout: {
+            bodyBg: '#f5f5f5',
+            headerBg: '#fff',
+            headerHeight: 64,
+            headerPadding: '0 24px',
+          },
+          Card: {
+            boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)',
+          },
+          Button: {
+            primaryShadow: 'none',
+          },
+        },
+      }}
+    >
+      <div className="app-container">
+        <AuthProvider>
+          <PaperSearchProvider>
+            <RouterProvider router={router} />
+          </PaperSearchProvider>
+        </AuthProvider>
+      </div>
     </ConfigProvider>
-  );
+  )
 }
 
-export default App;
+export default App

@@ -100,6 +100,11 @@ async def extract_innovations_from_file(
         # 检查文件类型
         if file.content_type not in ['application/pdf', 'text/html', 'text/plain'] and not file.filename.endswith('.html') and not file.filename.endswith('.pdf') and not file.filename.endswith('.txt'):
             raise HTTPException(status_code=400, detail="只支持PDF、HTML和TXT格式的文件")
+        
+        # 这里添加文件处理逻辑
+        return {"message": "文件处理成功", "innovations": ["示例创新点1", "示例创新点2"]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"处理文件时出错: {str(e)}")
 
 # API密钥管理接口
 if HAS_AUTH:
@@ -147,9 +152,13 @@ if HAS_AUTH:
             return result
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"获取API密钥失败: {str(e)}")
-            
 
-        
+@router.post("/process-file")
+async def process_file(
+    file: UploadFile = File(...)
+) -> Dict[str, Any]:
+    """处理上传的文件并提取内容"""
+    try:
         # 检查文件大小（10MB限制）
         file_size = 0
         content = await file.read()
