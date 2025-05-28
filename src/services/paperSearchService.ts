@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { message } from 'antd';
 import type { Paper } from '../types/paper';
+import { paperApi } from '../api';
 
 
 /**
@@ -10,59 +11,13 @@ import type { Paper } from '../types/paper';
  */
 export const searchArxiv = async (query: string): Promise<Paper[]> => {
   try {
-    // arXiv API URL
-    const url = `http://export.arxiv.org/api/query?search_query=all:${encodeURIComponent(query)}&start=0&max_results=10`;
+    console.log('🔍 从arXiv搜索论文，关键词:', query);
     
-    const response = await axios.get<string>(url);
+    // 调用API获取数据
+    const response = await paperApi.searchArxiv(query);
+    console.log('🔍 arXiv搜索结果:', response);
     
-    // 将XML响应转换为JSON
-    const parser = new DOMParser();
-    const xmlDoc = parser.parseFromString(response.data, 'text/xml');
-    
-    // 提取论文信息
-    const entries = Array.from(xmlDoc.getElementsByTagName('entry'));
-    
-    return entries.map(entry => {
-      // 提取作者
-      const authorElements = entry.getElementsByTagName('author');
-      const authors = Array.from(authorElements).map(author => {
-        const nameElement = author.getElementsByTagName('name')[0];
-        return nameElement ? nameElement.textContent || '' : '';
-      }).filter(name => name !== '');
-      
-      // 提取分类作为关键词
-      const categoryElements = entry.getElementsByTagName('category');
-      const keywords = Array.from(categoryElements)
-        .map(category => category.getAttribute('term') || '')
-        .filter(term => term !== '');
-      
-      // 提取发布日期并获取年份
-      const publishedElement = entry.getElementsByTagName('published')[0];
-      const publishedDate = publishedElement ? new Date(publishedElement.textContent || '') : new Date();
-      const year = publishedDate.getFullYear();
-      
-      // 提取ID并清理
-      const idElement = entry.getElementsByTagName('id')[0];
-      const fullId = idElement ? idElement.textContent || '' : '';
-      const id = fullId.split('/').pop() || fullId;
-      
-      // 构建arXiv论文URL
-      const arxivUrl = `https://arxiv.org/abs/${id}`;
-      
-      return {
-        id,
-        title: entry.getElementsByTagName('title')[0]?.textContent || '无标题',
-        authors,
-        abstract: entry.getElementsByTagName('summary')[0]?.textContent || '无摘要',
-        keywords: keywords.length > 0 ? keywords : ['arXiv'],
-        year,
-        journal: 'arXiv',
-        citations: 0, // arXiv API不提供引用次数
-        source: 'arXiv',
-        url: arxivUrl,
-        isFavorite: false
-      };
-    });
+    return response.papers || [];
   } catch (error: any) {
     console.error('从arXiv搜索论文失败:', error);
     
@@ -92,7 +47,7 @@ export const searchArxiv = async (query: string): Promise<Paper[]> => {
 };
 
 /**
- * 从自定义源搜索论文（模拟实现，实际项目中需要根据具体API调整）
+ * 从自定义源搜索论文（使用API调用）
  * @param query 搜索关键词
  * @param sourceUrl 搜索源URL
  * @param sourceName 搜索源名称
@@ -100,30 +55,13 @@ export const searchArxiv = async (query: string): Promise<Paper[]> => {
  */
 export const searchCustomSource = async (query: string, sourceUrl: string, sourceName: string): Promise<Paper[]> => {
   try {
-    // 注意：这里是模拟实现，实际项目中需要根据具体API调整
-    // 由于大多数学术网站需要特定的API访问方式，这里仅作为示例
+    console.log(`🔍 从${sourceName}搜索论文，关键词: ${query}`);
     
-    // 模拟数据
-    const mockPapers: Paper[] = [
-      {
-        id: `${sourceName.toLowerCase()}_${Date.now()}`,
-        title: `${query}相关研究进展`,
-        authors: ['研究者A', '研究者B'],
-        abstract: `这是一篇关于${query}的研究论文，来自${sourceName}...`,
-        keywords: [query, '研究', '进展'],
-        year: new Date().getFullYear(),
-        journal: sourceName,
-        citations: Math.floor(Math.random() * 100),
-        source: sourceName,
-        url: sourceUrl + '?q=' + encodeURIComponent(query), // 构建搜索URL
-        isFavorite: false
-      }
-    ];
+    // 调用API获取数据
+    const response = await paperApi.searchCustom(query, sourceName);
+    console.log(`🔍 从${sourceName}搜索结果:`, response);
     
-    // 模拟网络延迟
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    return mockPapers;
+    return response.papers || [];
   } catch (error: any) {
     console.error(`从${sourceName}搜索论文失败:`, error);
     
@@ -168,19 +106,26 @@ export const searchFromMultipleSources = async (
       return [];
     }
     
+    console.log('🔍 开始从多个源搜索论文:', query);
+    console.log('🔍 搜索源:', sources);
+    
     // 并行从所有源搜索
     const searchPromises = sources.map(source => {
       if (source.id === 'arxiv') {
+        console.log('🔍 调用 arXiv 搜索');
         return searchArxiv(query);
       } else {
+        console.log('🔍 调用自定义源搜索:', source.name);
         return searchCustomSource(query, source.url, source.name);
       }
     });
     
+    console.log('🔍 等待所有搜索完成...');
     const resultsArray = await Promise.all(searchPromises);
     
     // 合并结果
     const allPapers = resultsArray.flat();
+    console.log('🔍 搜索完成，总共找到论文数量:', allPapers.length);
     
     return allPapers;
   } catch (error: any) {

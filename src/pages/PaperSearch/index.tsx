@@ -65,14 +65,21 @@ const PaperSearch: React.FC = () => {
       return;
     }
     
+    console.log('🔍 开始搜索论文，关键词:', value);
+    console.log('🔍 活跃的搜索源:', activeSearchSources);
+    
     setSearchKeyword(value);
     setLoading(true);
     try {
       // 使用新的服务从多个源搜索论文
+      console.log('🔍 调用searchFromMultipleSources函数');
       const results = await searchFromMultipleSources(value, activeSearchSources);
+      console.log('🔍 搜索结果:', results);
       
       // 加载收藏状态
+      console.log('🔍 加载收藏状态');
       const resultsWithFavoriteStatus = loadFavoriteStatus(results);
+      console.log('🔍 带收藏状态的结果:', resultsWithFavoriteStatus);
       setPapers(resultsWithFavoriteStatus);
       
       // 如果没有搜索结果，显示提示
