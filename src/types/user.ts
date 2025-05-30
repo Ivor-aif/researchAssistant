@@ -4,8 +4,14 @@
  * 用户个人资料接口定义
  */
 export interface UserProfile {
-  id: number;
+  id: string;
   username: string;
+  email: string;
+  fullName: string;
+  institution: string;
+  researchInterests: string[];
+  bio: string;
+  avatarUrl: string;
   author_name?: string; // 论文署名名称
   author_email?: string; // 通讯作者邮箱
   author_website?: string; // 个人网站链接

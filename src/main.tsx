@@ -6,34 +6,30 @@ import './index.css'
 // 调试信息
 console.log('🚀 main.tsx - 应用入口文件开始执行')
 
-// 确保MSW在开发环境中正确初始化
+// 在开发环境中启用API模拟
 async function initMSW() {
-  if (import.meta.env.DEV) {
+  if (import.meta.env.MODE === 'development' && import.meta.env.VITE_ENABLE_API_MOCKING === 'true') {
     try {
-      console.log('🚀 main.tsx - 尝试初始化MSW')
-      const { worker } = await import('./mocks/browser')
-      console.log('🚀 main.tsx - MSW worker导入成功:', worker)
+      console.log('🔧 main.tsx - API模拟已启用，正在初始化MSW...');
+      const { worker } = await import('./mocks/browser');
       
-      // 确保worker存在且有start方法
+      // 启动MSW服务工作者
       if (worker && typeof worker.start === 'function') {
-        console.log('🚀 main.tsx - 开始启动MSW worker')
         await worker.start({
-          onUnhandledRequest: 'bypass',
-          serviceWorker: {
-            url: '/mockServiceWorker.js',
-          },
-        }).catch(error => {
-          console.error('🔴 MSW worker启动失败:', error)
-        })
-        console.log('✅ main.tsx - MSW worker启动成功')
+          onUnhandledRequest: 'warn', // 对于未处理的请求，显示警告以便调试
+        }).then(() => {
+          console.log('✅ main.tsx - MSW已成功启动');
+        }).catch((error) => {
+          console.error('❌ main.tsx - MSW启动失败:', error);
+        });
       } else {
-        console.error('🔴 main.tsx - MSW worker对象无效:', worker)
+        console.error('❌ main.tsx - MSW worker对象无效');
       }
     } catch (error) {
-      console.error('🔴 main.tsx - MSW初始化失败:', error)
+      console.error('❌ main.tsx - 导入MSW模块失败:', error);
     }
   } else {
-    console.log('📝 main.tsx - 非开发环境，跳过MSW初始化')
+    console.log('ℹ️ main.tsx - API模拟已禁用或非开发环境');
   }
 }
 

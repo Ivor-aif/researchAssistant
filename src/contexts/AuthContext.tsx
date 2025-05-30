@@ -4,8 +4,13 @@ import { userApi } from '../api';
 import { UserProfile } from '../types';
 
 interface User {
-  id: number;
+  id: string;
   username: string;
+  email?: string;
+  fullName?: string;
+  institution?: string;
+  researchInterests?: string[];
+  bio?: string;
   avatarUrl?: string;
   author_name?: string;
   author_email?: string;
@@ -46,7 +51,7 @@ const initializeLocalStorage = () => {
       // 创建默认用户
       const defaultUsers = [
         {
-          id: 1,
+          id: 'user1',
           username: 'admin',
           password: 'admin123',
           avatarUrl: ''
@@ -75,7 +80,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (import.meta.env.DEV) {
         console.log('开发环境：自动设置认证状态');
         const defaultUser = {
-          id: 1,
+          id: 'user1',
           username: 'admin',
           avatarUrl: ''
         };

@@ -80,25 +80,13 @@ const mockInnovationPoints = [
   }
 ]
 
-// 获取API基础URL
-let MOCK_API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
-// 移除基础URL中可能的尾部斜杠
-MOCK_API_BASE_URL = MOCK_API_BASE_URL.endsWith('/') ? MOCK_API_BASE_URL.slice(0, -1) : MOCK_API_BASE_URL;
-
-// 如果MOCK_API_BASE_URL以'/api'结尾，则移除它，因为API客户端中的路径已经包含了'/api'
-const baseUrl = MOCK_API_BASE_URL.endsWith('/api') ? MOCK_API_BASE_URL.slice(0, -4) : MOCK_API_BASE_URL;
+// 在开发环境中，我们使用空字符串作为基础URL，让MSW拦截所有请求
+const finalBaseUrl = '';
 
 // 调试输出
 console.log('🔷 handlers.ts - MSW处理程序初始化');
-console.log('🔷 handlers.ts - 原始API基础URL:', MOCK_API_BASE_URL);
-console.log('🔷 handlers.ts - 处理后的API基础URL:', baseUrl);
-console.log('🔷 handlers.ts - 第一个API路径示例:', `${baseUrl}/research/papers`);
-
-// 强制使用空字符串作为基础URL，让所有API请求都由MSW处理
-const finalBaseUrl = '';
-// 确保API路径正确匹配
-console.log('🔧 handlers.ts - 配置API基础URL:', MOCK_API_BASE_URL);
-console.log('🔧 handlers.ts - 最终使用的API基础URL:', finalBaseUrl);
+console.log('🔷 handlers.ts - 使用空字符串作为API基础URL，所有API请求都由MSW处理');
+console.log('🔷 handlers.ts - API路径示例:', `/research/papers`);
 
 // 模拟研究进度数据
 const mockProjects = [
