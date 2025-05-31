@@ -71,6 +71,7 @@ class ErrorBoundary extends Component<{ children: React.ReactNode }, { hasError:
 function App() {
   // 调试输出
   console.log('🚀 App.tsx - 应用组件开始渲染')
+  console.log('🚀 App.tsx - 路由配置:', router)
 
   // 在组件挂载后显示提示信息
   React.useEffect(() => {
