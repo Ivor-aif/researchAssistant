@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
-import { Card, Steps, Upload, Form, Input, Button, Space, Typography, Divider } from 'antd';
+import { Card, Steps, Upload, Button, Space, Typography, Divider } from 'antd';
 import { UploadOutlined, ExperimentOutlined } from '@ant-design/icons';
 import type { UploadFile } from 'antd/es/upload/interface';
 
 const { Title, Text, Paragraph } = Typography;
-const { TextArea } = Input;
 
 interface ExperimentStep {
   title: string;
@@ -15,10 +14,9 @@ interface ExperimentStep {
 }
 
 const PaperReproduction: React.FC = () => {
-  const [currentStep, setCurrentStep] = useState(0);
+  const [currentStep] = useState(0);
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [experimentSteps, setExperimentSteps] = useState<ExperimentStep[]>([]);
-  const [form] = Form.useForm();
 
   const handleFileChange = (info: any) => {
     setFileList(info.fileList);
@@ -154,7 +152,7 @@ const PaperReproduction: React.FC = () => {
               <Steps
                 direction="vertical"
                 current={currentStep}
-                items={experimentSteps.map((step, index) => ({
+                items={experimentSteps.map((step) => ({
                   title: step.title,
                   description: renderStepContent(step),
                   status: step.status === 'error' ? 'error' : undefined

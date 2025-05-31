@@ -4,7 +4,10 @@ import { Provider } from 'react-redux';
 import { BrowserRouter } from 'react-router-dom';
 import { configureStore } from '@reduxjs/toolkit';
 import Login from '../Login';
-import authReducer from '../authSlice';
+import authReducer from '../__mocks__/authSlice';
+
+// 导入测试库扩展
+import '@testing-library/jest-dom';
 
 // 创建测试用的 store
 const store = configureStore({
@@ -33,16 +36,16 @@ describe('Login Component', () => {
   test('渲染登录表单', () => {
     renderWithProviders(<Login />);
     
-    expect(screen.getByLabelText(/邮箱/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/密码/i)).toBeInTheDocument();
+    expect(screen.getByTestId('email-input')).toBeInTheDocument();
+    expect(screen.getByTestId('password-input')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /登录/i })).toBeInTheDocument();
   });
 
   test('输入验证', async () => {
     renderWithProviders(<Login />);
     
-    const emailInput = screen.getByLabelText(/邮箱/i);
-    const passwordInput = screen.getByLabelText(/密码/i);
+    const emailInput = screen.getByTestId('email-input');
+    const passwordInput = screen.getByTestId('password-input');
     const submitButton = screen.getByRole('button', { name: /登录/i });
 
     // 测试空输入
@@ -74,8 +77,8 @@ describe('Login Component', () => {
 
     renderWithProviders(<Login />);
 
-    const emailInput = screen.getByLabelText(/邮箱/i);
-    const passwordInput = screen.getByLabelText(/密码/i);
+    const emailInput = screen.getByTestId('email-input');
+    const passwordInput = screen.getByTestId('password-input');
     const submitButton = screen.getByRole('button', { name: /登录/i });
 
     fireEvent.change(emailInput, { target: { value: 'test@example.com' } });

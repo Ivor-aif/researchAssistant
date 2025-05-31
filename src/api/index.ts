@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { Paper, PaperSearchParams, InnovationPoint, UserProfile, ApiKeys } from '../types';
+import type { Paper, PaperSearchParams, InnovationPoint, UserProfile, ApiKeys } from '../types';
 
 // 在文件顶部添加调试日志
 console.log('🔌 api/index.ts - API 客户端初始化');
@@ -7,17 +7,20 @@ console.log('🔌 api/index.ts - API 客户端初始化');
 // 获取API基础URL
 let API_BASE_URL = '';
 
-// 在开发环境中，我们使用空字符串作为基础URL，让MSW拦截所有请求
-if (import.meta.env.DEV) {
+// 根据环境变量设置API基础URL
+const ENABLE_API_MOCKING = import.meta.env.VITE_ENABLE_API_MOCKING === 'true';
+
+// 如果启用了API模拟，使用空字符串作为基础URL
+if (ENABLE_API_MOCKING && import.meta.env.DEV) {
   API_BASE_URL = '';
-  console.log('🔌 api/index.ts - 开发环境使用空基础URL，由MSW处理所有请求');
+  console.log('🔌 api/index.ts - API模拟已启用，使用空基础URL');
 } else {
-  // 生产环境使用配置的API基础URL
-  API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+  // 使用配置的API基础URL
+  API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
   // 移除末尾的斜杠（如果有）
   API_BASE_URL = API_BASE_URL.endsWith('/') ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
   
-  // 如果API_BASE_URL以'/api'结尾，则移除它，因为API路径已经包含了'/api'
+  // 确保API基础URL不以'/api'结尾，因为API路径已经包含了'/api'
   if (API_BASE_URL.endsWith('/api')) {
     API_BASE_URL = API_BASE_URL.slice(0, -4);
   }
@@ -30,13 +33,12 @@ if (import.meta.env.DEV) {
 
 // 调试输出
 console.log('🔌 api/index.ts - 最终使用的API基础URL:', API_BASE_URL);
-
-const ENABLE_API_MOCKING = import.meta.env.VITE_ENABLE_API_MOCKING === 'true' || true; // 强制启用模拟
+console.log('🔌 api/index.ts - API模拟状态:', ENABLE_API_MOCKING ? '启用' : '禁用');
 
 // 如果启用了API模拟，输出日志信息
 if (ENABLE_API_MOCKING) {
   console.log('🔌 API模拟已启用，将使用模拟数据而不是真实API调用');
-  console.log('🔌 原始API基础URL:', import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api');
+  console.log('🔌 原始API基础URL:', import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000');
   console.log('🔌 处理后的API基础URL:', API_BASE_URL);
 }
 

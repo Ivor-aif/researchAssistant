@@ -1,5 +1,5 @@
 import { http, HttpResponse, delay } from 'msw'
-import { Paper, UserProfile } from '../types'
+import type { Paper, UserProfile } from '../types'
 
 // 模拟数据
 const mockPapers: Paper[] = [
@@ -234,11 +234,11 @@ export const handlers = [
   http.post(`${finalBaseUrl}/auth/login`, async ({ request }) => {
     await delay(500)
     
-    const body = await request.json()
-    console.log('🔑 MSW处理登录请求:', body.email)
+    const body = await request.json() as { email: string; password: string } | null
+    console.log('🔑 MSW处理登录请求:', body?.email)
     
     // 简单的模拟登录验证
-    if (body.email === 'researcher@example.com' && body.password === 'password123') {
+    if (body && body.email === 'researcher@example.com' && body.password === 'password123') {
       console.log('✅ MSW登录成功')
       return HttpResponse.json({
         token: 'mock-jwt-token',
@@ -264,8 +264,8 @@ export const handlers = [
   http.post(`${finalBaseUrl}/research/innovation/analyze`, async ({ request }) => {
     await delay(1000) // 模拟较长的处理时间
     
-    const body = await request.json()
-    console.log('🧠 MSW处理创新点分析请求:', body.text ? body.text.substring(0, 50) + '...' : '无文本')
+    const body = await request.json() as { text?: string } | null
+    console.log('🧠 MSW处理创新点分析请求:', body?.text ? body.text.substring(0, 50) + '...' : '无文本')
     
     return HttpResponse.json({
       innovation_points: mockInnovationPoints,
@@ -328,7 +328,7 @@ export const handlers = [
     let filteredPapers = mockPapers
     if (source) {
       filteredPapers = mockPapers.filter(paper => 
-        paper.source.toLowerCase() === source.toLowerCase()
+        paper.source && paper.source.toLowerCase() === source.toLowerCase()
       )
     }
     
@@ -367,7 +367,7 @@ export const handlers = [
     console.log('📥 MSW - 拦截到创建研究进度项目请求');
     
     try {
-      const body = await request.json();
+      const body = await request.json() as { title?: string; description?: string; start_date?: string; status?: string } | null;
       console.log('📥 MSW - 创建项目数据:', body);
       
       // 延迟600ms模拟网络请求
@@ -376,10 +376,10 @@ export const handlers = [
       // 创建新项目
       const newProject = {
         id: `project${Date.now()}`,
-        title: body.title || '新研究项目',
-        description: body.description || '项目描述',
-        start_date: body.start_date || new Date().toISOString().split('T')[0],
-        status: body.status || 'PLANNING'
+        title: body?.title || '新研究项目',
+        description: body?.description || '项目描述',
+        start_date: body?.start_date || new Date().toISOString().split('T')[0],
+        status: body?.status || 'PLANNING'
       };
       
       // 在实际应用中，这里会将新项目添加到数据库
@@ -406,7 +406,7 @@ export const handlers = [
     console.log('📥 MSW - 拦截到生成报告请求');
     
     try {
-      const body = await request.json();
+      const body = await request.json() as { [key: string]: any } | null;
       console.log('📥 MSW - 生成报告数据:', body);
       
       // 延迟1200ms模拟报告生成过程
@@ -415,8 +415,8 @@ export const handlers = [
       console.log('📤 MSW - 返回生成的报告内容');
       return HttpResponse.json({
         data: {
-          title: body.title || '研究报告',
-          type: body.type || 'research',
+          title: body?.title || '研究报告',
+        type: body?.type || 'research',
           sections: mockReportSections
         },
         message: '报告生成成功'
@@ -437,14 +437,14 @@ export const handlers = [
     console.log('📥 MSW - 拦截到下载报告请求');
     
     try {
-      const body = await request.json();
+      const body = await request.json() as { [key: string]: any } | null;
       console.log('📥 MSW - 下载报告数据:', body);
       
       // 延迟800ms模拟下载准备过程
       await delay(800);
       
       // 生成模拟下载链接
-      const downloadUrl = `${finalBaseUrl}/downloads/${body.title.replace(/\s+/g, '_')}_${Date.now()}.pdf`;
+      const downloadUrl = `${finalBaseUrl}/downloads/${body?.title?.replace(/\s+/g, '_') || 'report'}_${Date.now()}.pdf`;
       
       console.log('📤 MSW - 返回报告下载链接:', downloadUrl);
       return HttpResponse.json({

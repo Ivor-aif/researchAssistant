@@ -3,8 +3,8 @@ import { Form, Input, Button, Upload, message, Tabs, Avatar, Space, Typography, 
 import { UserOutlined, LockOutlined, UploadOutlined, MailOutlined, LinkOutlined, ApiOutlined, KeyOutlined } from '@ant-design/icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { aiApi } from '../../api';
-import type { RcFile, UploadFile, UploadProps } from 'antd/es/upload/interface';
-import { UserProfile, ApiKeys } from '../../types';
+import type { RcFile, UploadProps } from 'antd/es/upload/interface';
+import type { UserProfile, ApiKeys } from '../../types';
 
 const { TabPane } = Tabs;
 const { Title, Text, Paragraph } = Typography;
@@ -88,7 +88,7 @@ const AccountSettings: React.FC = () => {
   const handleUsernameUpdate = async (values: UserFormData) => {
     setLoading(true);
     try {
-      const success = updateUser({ username: values.username });
+      const success = await updateUser({ username: values.username });
       if (success) {
         // 不需要刷新页面，因为AuthContext会自动更新UI
       }
@@ -205,12 +205,12 @@ const AccountSettings: React.FC = () => {
     if (info.file.status === 'done') {
       // 在实际应用中，这里应该是从服务器响应中获取URL
       // 这里我们使用模拟的方式，将文件转换为base64
-      getBase64(info.file.originFileObj as RcFile, (url) => {
+      getBase64(info.file.originFileObj as RcFile, async (url) => {
         setLoading(false);
         setAvatarUrl(url);
         
         // 更新用户头像
-        const success = updateUser({ avatarUrl: url });
+        const success = await updateUser({ avatarUrl: url });
         if (success) {
           // AuthContext会自动显示成功消息
         }
@@ -263,10 +263,10 @@ const AccountSettings: React.FC = () => {
     try {
       const response = await aiApi.updateApiKeys(values);
       
-      if (response && response.success) {
+      if (response) {
         message.success('API密钥已更新');
       } else {
-        throw new Error(response?.message || '更新API密钥失败');
+        throw new Error('更新API密钥失败');
       }
     } catch (error: any) {
       console.error('更新API密钥失败:', error);
