@@ -1,4 +1,4 @@
-import React, { lazy, Suspense } from 'react';
+import React, { Suspense, lazy } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import OptimizedMainLayout from '../components/layout/OptimizedMainLayout';
 import ProtectedRoute from './ProtectedRoute';

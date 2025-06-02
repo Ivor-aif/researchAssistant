@@ -1,6 +1,8 @@
 import { setupWorker } from 'msw/browser'
-import type { RequestHandler } from 'msw'
 import { handlers } from './handlers'
+
+// 声明顶层变量，用于存储worker实例
+let workerInstance: any;
 
 // 添加调试日志
 console.log('🔧 browser.ts - 开始创建 MSW 服务工作者实例')
@@ -9,7 +11,7 @@ console.log('🔧 browser.ts - 处理程序数量:', handlers.length)
 try {
   // 创建worker变量
   // @ts-ignore - 忽略 MSW v2 中的类型不匹配问题
-  const worker = setupWorker(...handlers);
+  workerInstance = setupWorker(...handlers);
 
   // 添加更多调试日志
   console.log('✅ browser.ts - MSW 服务工作者实例已成功创建')
@@ -30,22 +32,22 @@ try {
 
   try {
     // @ts-ignore - 忽略事件监听器类型错误
-    worker.events.on('request:start', ({ request }) => {
+    workerInstance.events.on('request:start', ({ request }) => {
       console.log('🔄 MSW - 拦截到请求:', request.method, request.url)
     })
 
     // @ts-ignore - 忽略事件监听器类型错误
-    worker.events.on('request:end', ({ request, response }) => {
+    workerInstance.events.on('request:end', ({ request, response }) => {
       console.log('✅ MSW - 请求已处理:', request.method, request.url, '状态:', response?.status)
     })
 
     // @ts-ignore - 忽略事件监听器类型错误
-    worker.events.on('request:unhandled', ({ request }) => {
+    workerInstance.events.on('request:unhandled', ({ request }) => {
       console.warn('⚠️ MSW - 未处理的请求:', request.method, request.url)
     })
 
     // @ts-ignore - 忽略事件监听器类型错误
-    worker.events.on('response:mocked', ({ response, request }) => {
+    workerInstance.events.on('response:mocked', ({ response, request }) => {
       console.log('🔶 MSW - 模拟响应:', request.method, request.url, '状态:', response.status)
     })
 
@@ -55,15 +57,17 @@ try {
     // 即使事件监听器添加失败，也继续使用worker
   }
 
-  // 导出worker，确保MSW正确初始化
-  export { worker }
+  // worker 将在顶层导出，这里不需要导出
 } catch (error) {
   console.error('❌ browser.ts - 创建MSW服务工作者实例失败:', error)
-  // 导出一个空的worker对象，以防止导入失败
-  export const worker = {
+  // 创建一个降级的worker对象
+  workerInstance = {
     start: async () => {
       console.error('❌ 使用了降级的MSW worker')
       return Promise.resolve()
     }
   }
 }
+
+// 在顶层导出worker
+export { workerInstance as worker }

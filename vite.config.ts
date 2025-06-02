@@ -17,6 +17,10 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 3000,
       open: true,
+      host: true, // 允许所有主机访问
+      strictPort: false, // 如果端口被占用，尝试下一个可用端口
+      https: false, // 禁用HTTPS
+      cors: true, // 启用CORS
       // 当API模拟启用时，禁用代理
       proxy: FORCE_MOCK_API ? undefined : {
         '/api': {

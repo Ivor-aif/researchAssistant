@@ -1,61 +1,134 @@
-import React, { Component, ErrorInfo } from 'react'
-import { ConfigProvider, theme, message } from 'antd'
-import { RouterProvider } from 'react-router-dom'
-import router from './router'
-import { AuthProvider } from './contexts/AuthContext'
-import { PaperSearchProvider } from './contexts/PaperSearchContext'
-import './App.css'
+import React, { useEffect } from 'react';
+import { ConfigProvider, message, theme } from 'antd';
+import { RouterProvider } from 'react-router-dom';
+import { AuthProvider } from './contexts/AuthContext';
+import { PaperSearchProvider } from './contexts/PaperSearchContext';
+import router from './router';
+import './App.css';
+
+// 自定义主题配置
+const customTheme = {
+  token: {
+    colorPrimary: '#1890ff',
+    colorSuccess: '#52c41a',
+    colorWarning: '#faad14',
+    colorError: '#f5222d',
+    colorInfo: '#1890ff',
+    borderRadius: 6,
+    wireframe: false,
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+  },
+  components: {
+    Button: {
+      colorPrimary: '#1890ff',
+      algorithm: true,
+      borderRadius: 6,
+    },
+    Card: {
+      borderRadius: 12,
+      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
+    },
+    Menu: {
+      itemBorderRadius: 6,
+      itemMarginInline: 8,
+      itemMarginBlock: 4,
+    },
+    Input: {
+      borderRadius: 6,
+    },
+    Select: {
+      borderRadius: 6,
+    },
+    Table: {
+      borderRadius: 8,
+      headerBg: '#fafafa',
+    },
+    Layout: {
+      headerBg: 'linear-gradient(90deg, #1890ff 0%, #096dd9 100%)',
+      headerHeight: 64,
+      siderBg: '#fff',
+    },
+  },
+  algorithm: theme.defaultAlgorithm,
+};
 
 // 错误边界组件
-class ErrorBoundary extends Component<{ children: React.ReactNode }, { hasError: boolean, error: Error | null }> {
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean, error: Error | null }> {
   constructor(props: { children: React.ReactNode }) {
     super(props);
     this.state = { hasError: false, error: null };
   }
 
   static getDerivedStateFromError(error: Error) {
-    // 更新状态，下次渲染时显示错误UI
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    // 记录错误信息
-    console.error('应用错误:', error);
-    console.error('错误详情:', errorInfo);
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('应用错误:', error, errorInfo);
   }
 
   render() {
     if (this.state.hasError) {
-      // 显示自定义错误UI
       return (
-        <div style={{ 
-          padding: '20px', 
-          textAlign: 'center', 
-          marginTop: '50px' 
+        <div style={{
+          padding: '40px',
+          maxWidth: '800px',
+          margin: '100px auto',
+          textAlign: 'center',
+          background: '#fff',
+          borderRadius: '12px',
+          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
+          animation: 'fadeIn 0.5s ease-out'
         }}>
-          <h2>应用发生错误</h2>
-          <p>请尝试刷新页面或联系管理员</p>
-          <details style={{ marginTop: '20px', textAlign: 'left' }}>
-            <summary>错误详情</summary>
-            <pre style={{ 
-              background: '#f5f5f5', 
-              padding: '10px', 
-              borderRadius: '5px',
-              overflowX: 'auto'
+          <h1 style={{ color: '#f5222d', marginBottom: '24px', fontSize: '28px' }}>应用发生错误</h1>
+          <p style={{ fontSize: '16px', color: 'rgba(0, 0, 0, 0.65)', marginBottom: '32px' }}>
+            抱歉，应用程序遇到了一个问题。请尝试刷新页面或联系管理员。
+          </p>
+          
+          <details style={{
+            background: '#f9f9f9',
+            padding: '16px',
+            borderRadius: '8px',
+            textAlign: 'left',
+            marginBottom: '24px',
+            border: '1px solid #eee'
+          }}>
+            <summary style={{ fontWeight: 'bold', cursor: 'pointer', color: '#1890ff' }}>
+              错误详情
+            </summary>
+            <pre style={{
+              overflow: 'auto',
+              padding: '16px',
+              background: '#f5f5f5',
+              borderRadius: '6px',
+              marginTop: '12px',
+              fontSize: '14px',
+              color: '#d32029'
             }}>
               {this.state.error?.toString()}
             </pre>
           </details>
-          <button 
-            onClick={() => window.location.reload()} 
-            style={{ 
-              marginTop: '20px', 
-              padding: '8px 16px', 
-              background: '#1890ff', 
-              color: 'white', 
-              border: 'none', 
-              borderRadius: '4px', 
-              cursor: 'pointer' 
+          
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              background: 'linear-gradient(90deg, #1890ff 0%, #096dd9 100%)',
+              color: 'white',
+              border: 'none',
+              padding: '10px 24px',
+              borderRadius: '6px',
+              fontSize: '16px',
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(24, 144, 255, 0.3)',
+              transition: 'all 0.3s'
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(24, 144, 255, 0.5)';
+              e.currentTarget.style.transform = 'translateY(-2px)';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.boxShadow = '0 2px 8px rgba(24, 144, 255, 0.3)';
+              e.currentTarget.style.transform = 'translateY(0)';
             }}
           >
             刷新页面
@@ -68,56 +141,22 @@ class ErrorBoundary extends Component<{ children: React.ReactNode }, { hasError:
   }
 }
 
-function App() {
-  // 调试输出
-  console.log('🚀 App.tsx - 应用组件开始渲染')
-  console.log('🚀 App.tsx - 路由配置:', router)
-
-  // 在组件挂载后显示提示信息
-  React.useEffect(() => {
-    console.log('🚀 App.tsx - 应用组件已挂载')
-    message.info('应用已加载完成', 2)
-  }, [])
+const App: React.FC = () => {
+  useEffect(() => {
+    message.success('AI 研究助手已加载完成');
+  }, []);
 
   return (
     <ErrorBoundary>
-      <ConfigProvider
-        theme={{
-          algorithm: theme.defaultAlgorithm,
-          token: {
-            colorPrimary: '#1677ff',
-            colorSuccess: '#52c41a',
-            colorWarning: '#faad14',
-            colorError: '#ff4d4f',
-            colorInfo: '#1677ff',
-            borderRadius: 6,
-          },
-          components: {
-            Layout: {
-              bodyBg: '#f5f5f5',
-              headerBg: '#fff',
-              headerHeight: 64,
-              headerPadding: '0 24px',
-            },
-            Card: {
-              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)',
-            },
-            Button: {
-              primaryShadow: 'none',
-            },
-          },
-        }}
-      >
-        <div className="app-container">
-          <AuthProvider>
-            <PaperSearchProvider>
-              <RouterProvider router={router} />
-            </PaperSearchProvider>
-          </AuthProvider>
-        </div>
+      <ConfigProvider theme={customTheme}>
+        <AuthProvider>
+          <PaperSearchProvider>
+            <RouterProvider router={router} />
+          </PaperSearchProvider>
+        </AuthProvider>
       </ConfigProvider>
     </ErrorBoundary>
-  )
-}
+  );
+};
 
-export default App
+export default App;

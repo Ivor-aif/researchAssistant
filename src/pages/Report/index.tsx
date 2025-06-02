@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Card, Form, Input, Button, Select, Space, Typography, message } from 'antd';
-import { FileTextOutlined, DownloadOutlined } from '@ant-design/icons';
+import { FileTextOutlined, DownloadOutlined, FileOutlined } from '@ant-design/icons';
 import { reportApi } from '../../api';
+import './style.css';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -126,28 +127,38 @@ const Report: React.FC = () => {
   };
 
   return (
-    <div>
-      <Card title="报告生成" bordered={false}>
+    <div className="report-container">
+      <Card 
+        title={
+          <div className="report-header">
+            <FileOutlined className="report-icon" />
+            报告生成
+          </div>
+        } 
+        bordered={false}
+        className="report-card"
+      >
         <Space direction="vertical" style={{ width: '100%' }} size="large">
           <Form
             form={form}
             onFinish={handleGenerate}
             layout="vertical"
+            className="form-container"
           >
             <Form.Item
               name="title"
-              label="报告标题"
+              label={<span className="form-label">报告标题</span>}
               rules={[{ required: true, message: '请输入报告标题' }]}
             >
-              <Input placeholder="请输入报告标题" />
+              <Input placeholder="请输入报告标题" className="form-input" />
             </Form.Item>
 
             <Form.Item
               name="type"
-              label="报告类型"
+              label={<span className="form-label">报告类型</span>}
               rules={[{ required: true, message: '请选择报告类型' }]}
             >
-              <Select placeholder="请选择报告类型">
+              <Select placeholder="请选择报告类型" className="form-select">
                 <Option value="research">研究报告</Option>
                 <Option value="experiment">实验报告</Option>
                 <Option value="progress">进度报告</Option>
@@ -156,19 +167,20 @@ const Report: React.FC = () => {
 
             <Form.Item
               name="keywords"
-              label="关键词"
+              label={<span className="form-label">关键词</span>}
               rules={[{ required: true, message: '请输入关键词' }]}
             >
-              <Input placeholder="请输入关键词，用逗号分隔" />
+              <Input placeholder="请输入关键词，用逗号分隔" className="form-input" />
             </Form.Item>
 
             <Form.Item
               name="description"
-              label="报告简介"
+              label={<span className="form-label">报告简介</span>}
             >
               <TextArea
                 placeholder="请输入报告简介"
                 rows={4}
+                className="form-textarea"
               />
             </Form.Item>
 
@@ -178,6 +190,7 @@ const Report: React.FC = () => {
                 icon={<FileTextOutlined />}
                 loading={generating}
                 htmlType="submit"
+                className="generate-button"
               >
                 生成报告
               </Button>
@@ -185,23 +198,23 @@ const Report: React.FC = () => {
           </Form>
 
           {reportContent.length > 0 && (
-            <>
-              <Title level={4}>报告预览</Title>
+            <div className="preview-container">
+              <Title level={4} className="preview-title">报告预览</Title>
               {reportContent.map((section, index) => (
                 <div key={index}>
-                  <Title level={5}>{section.title}</Title>
-                  <Text>{section.content}</Text>
+                  <Title level={5} className="section-title">{section.title}</Title>
+                  <Text className="section-content">{section.content}</Text>
                 </div>
               ))}
               <Button
                 type="primary"
                 icon={<DownloadOutlined />}
                 onClick={handleDownload}
-                style={{ marginTop: 16 }}
+                className="download-button"
               >
                 下载报告
               </Button>
-            </>
+            </div>
           )}
         </Space>
       </Card>

@@ -1,6 +1,6 @@
 import React, { lazy, Suspense, useMemo } from 'react';
-import { Layout, Menu, Spin, Typography, Avatar, Space, Divider, Dropdown, Button } from 'antd';
-import { Link, Outlet, useNavigate } from 'react-router-dom';
+import { Layout, Menu, Spin, Typography, Avatar, Space, Divider, Dropdown, Button, Badge } from 'antd';
+import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   FileSearchOutlined,
   BulbOutlined,
@@ -11,7 +11,9 @@ import {
   RobotOutlined,
   LogoutOutlined,
   LoginOutlined,
-  SettingOutlined
+  SettingOutlined,
+  BellOutlined,
+  GithubOutlined
 } from '@ant-design/icons';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -22,6 +24,7 @@ const { Title, Text } = Typography;
 const AppHeader = React.memo(() => {
   const { user, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   
   const handleLogout = () => {
     logout();
@@ -54,35 +57,59 @@ const AppHeader = React.memo(() => {
   return (
     <Header style={{ 
       padding: '0 24px', 
-      background: '#1890ff', 
+      background: 'linear-gradient(90deg, #1890ff 0%, #096dd9 100%)', 
       boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
       display: 'flex',
       alignItems: 'center',
-      justifyContent: 'space-between'
+      justifyContent: 'space-between',
+      position: 'sticky',
+      top: 0,
+      zIndex: 100,
+      width: '100%'
     }}>
       <div style={{ display: 'flex', alignItems: 'center' }}>
         <Avatar 
           icon={<RobotOutlined />} 
-          style={{ backgroundColor: '#fff', color: '#1890ff', marginRight: 12 }} 
+          style={{ 
+            backgroundColor: '#fff', 
+            color: '#1890ff', 
+            marginRight: 12,
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)'
+          }} 
           size={40} 
         />
         <Title level={4} style={{ margin: 0, color: '#fff' }}>AI 研究助手</Title>
       </div>
-      <Space>
+      <Space size="large">
+        <Badge count={5} size="small">
+          <Button 
+            type="text" 
+            icon={<BellOutlined />} 
+            style={{ color: '#fff', fontSize: '18px' }}
+          />
+        </Badge>
         {isAuthenticated ? (
           <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
             <Space style={{ cursor: 'pointer' }}>
-              <Avatar style={{ backgroundColor: '#f56a00' }}>
+              <Avatar style={{ 
+                backgroundColor: '#f56a00',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)'
+              }}>
                 {user?.username.charAt(0).toUpperCase()}
               </Avatar>
-              <Typography.Text style={{ color: '#fff' }}>{user?.username}</Typography.Text>
+              <Typography.Text style={{ color: '#fff', fontWeight: 500 }}>{user?.username}</Typography.Text>
             </Space>
           </Dropdown>
         ) : (
           <Button 
-            type="link" 
+            type="primary" 
             icon={<LoginOutlined />} 
-            style={{ color: '#fff' }}
+            style={{ 
+              background: 'rgba(255, 255, 255, 0.2)', 
+              borderColor: 'rgba(255, 255, 255, 0.3)',
+              color: '#fff',
+              fontWeight: 500
+            }}
             onClick={() => navigate('/auth')}
           >
             登录
@@ -95,14 +122,13 @@ const AppHeader = React.memo(() => {
 
 const OptimizedMainLayout: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  
+  // 获取当前活动的菜单项
+  const activeMenuItem = location.pathname.split('/')[1] || 'paper-search';
   
   // 使用useMemo缓存菜单项配置
   const menuItems = useMemo(() => [
-    {
-      key: 'auth',
-      icon: <UserOutlined />,
-      label: <Link to="/auth">用户认证</Link>
-    },
     {
       key: 'paper-search',
       icon: <FileSearchOutlined />,
@@ -127,6 +153,11 @@ const OptimizedMainLayout: React.FC = () => {
       key: 'report',
       icon: <FileTextOutlined />,
       label: <Link to="/report">报告生成</Link>
+    },
+    {
+      key: 'auth',
+      icon: <UserOutlined />,
+      label: <Link to="/auth">个人中心</Link>
     }
   ], []);
 
@@ -140,35 +171,57 @@ const OptimizedMainLayout: React.FC = () => {
             background: '#fff',
             boxShadow: '2px 0 8px 0 rgba(29,35,41,.05)',
             zIndex: 10,
-            height: '100%'
+            height: '100%',
+            position: 'sticky',
+            left: 0,
+            top: 64,
+            overflow: 'auto'
           }}
+          breakpoint="lg"
+          collapsedWidth={0}
         >
           <div style={{ padding: '16px 0', textAlign: 'center' }}>
-            <Text type="secondary" style={{ fontSize: '12px' }}>研究工具</Text>
+            <Text type="secondary" style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px' }}>研究工具</Text>
           </div>
           <Divider style={{ margin: '0 0 8px 0' }} />
           <Menu
             mode="inline"
-            defaultSelectedKeys={['paper-search']}
+            selectedKeys={[activeMenuItem]}
             style={{ 
               borderRight: 0,
               padding: '8px 0'
             }}
             items={menuItems}
           />
+          <Divider style={{ margin: '8px 0' }} />
+          <div style={{ padding: '16px', textAlign: 'center' }}>
+            <Space direction="vertical" size="small" style={{ width: '100%' }}>
+              <Button 
+                type="text" 
+                icon={<GithubOutlined />} 
+                style={{ width: '100%', textAlign: 'left' }}
+                onClick={() => window.open('https://github.com', '_blank')}
+              >
+                GitHub
+              </Button>
+              <Text type="secondary" style={{ fontSize: '12px' }}>版本: v1.0.0</Text>
+            </Space>
+          </div>
         </Sider>
         <Content style={{
           padding: '24px',
           margin: 0,
           minHeight: 'calc(100vh - 64px - 48px)',
-          background: '#f0f2f5'
+          background: '#f0f2f5',
+          overflowX: 'hidden'
         }}>
           <div style={{
             background: '#fff',
             padding: '24px',
-            borderRadius: '8px',
+            borderRadius: '12px',
             boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
-            minHeight: 'calc(100vh - 64px - 48px - 48px)'
+            minHeight: 'calc(100vh - 64px - 48px - 48px)',
+            animation: 'fadeIn 0.3s ease-in-out'
           }}>
             <Suspense fallback={
               <div style={{ 

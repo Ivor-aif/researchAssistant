@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Card, Steps, Upload, Button, Space, Typography, Divider } from 'antd';
-import { UploadOutlined, ExperimentOutlined } from '@ant-design/icons';
+import { UploadOutlined, ExperimentOutlined, CheckCircleOutlined, SyncOutlined, ClockCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import type { UploadFile } from 'antd/es/upload/interface';
+import './style.css';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -54,62 +55,54 @@ const PaperReproduction: React.FC = () => {
     }
   };
 
+  const getStepIcon = (status: ExperimentStep['status']) => {
+    switch (status) {
+      case 'finished':
+        return <CheckCircleOutlined className="step-status-finished" />;
+      case 'in-progress':
+        return <SyncOutlined spin className="step-status-in-progress" />;
+      case 'waiting':
+        return <ClockCircleOutlined className="step-status-waiting" />;
+      case 'error':
+        return <CloseCircleOutlined className="step-status-error" />;
+      default:
+        return <ClockCircleOutlined className="step-status-waiting" />;
+    }
+  };
+
   const renderStepContent = (step: ExperimentStep) => (
     <Space direction="vertical" style={{ width: '100%' }}>
-      <Paragraph style={{ fontSize: '15px', lineHeight: '1.8' }}>{step.description}</Paragraph>
+      <Paragraph className="step-description">{step.description}</Paragraph>
       {step.code && (
         <>
-          <Text strong style={{ fontSize: '15px' }}>代码：</Text>
-          <pre style={{ 
-            background: '#f5f5f5', 
-            padding: '20px', 
-            borderRadius: '10px',
-            fontSize: '14px',
-            lineHeight: '1.6',
-            overflow: 'auto',
-            boxShadow: 'inset 0 0 6px rgba(0, 0, 0, 0.02)'
-          }}>
+          <Text strong className="code-title">代码：</Text>
+          <pre className="code-block">
             {step.code}
           </pre>
         </>
       )}
       {step.results && (
         <>
-          <Text strong style={{ fontSize: '15px' }}>结果：</Text>
-          <Paragraph style={{ 
-            fontSize: '15px', 
-            lineHeight: '1.8',
-            padding: '15px',
-            backgroundColor: '#f9f9f9',
-            borderRadius: '10px'
-          }}>{step.results}</Paragraph>
+          <Text strong className="results-title">结果：</Text>
+          <Paragraph className="results-block">{step.results}</Paragraph>
         </>
       )}
     </Space>
    );
 
-
-
   return (
-    <div style={{ 
-      padding: '20px', 
-      display: 'flex', 
-      justifyContent: 'center',
-      width: '100%',
-      minHeight: '100vh',
-      backgroundColor: '#f5f5f5'
-    }}>
+    <div className="paper-reproduction-container">
       <Card 
-        title={<div style={{ fontSize: '22px', textAlign: 'center', padding: '10px 0' }}>论文复现</div>} 
+        title={
+          <div className="reproduction-header">
+            <ExperimentOutlined className="reproduction-icon" />
+            论文复现
+          </div>
+        } 
         bordered={false}
-        style={{ 
-          width: '100%', 
-          maxWidth: '1200px',
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
-          borderRadius: '12px'
-        }}
+        className="reproduction-card"
       >
-        <Space direction="vertical" style={{ width: '100%', maxWidth: '800px', margin: '0 auto', padding: '0 20px' }} size="large">
+        <Space direction="vertical" className="upload-container" size="large">
           <Upload
             fileList={fileList}
             onChange={handleFileChange}
@@ -118,7 +111,7 @@ const PaperReproduction: React.FC = () => {
           >
             <Button 
               icon={<UploadOutlined />} 
-              style={{ width: '100%', height: '46px', borderRadius: '8px' }}
+              className="upload-button"
               size="large"
             >
               上传论文和代码
@@ -130,32 +123,25 @@ const PaperReproduction: React.FC = () => {
             icon={<ExperimentOutlined />}
             onClick={handleStartReproduction}
             disabled={fileList.length === 0}
-            style={{ width: '100%', height: '46px', borderRadius: '8px' }}
+            className="start-button"
             size="large"
           >
             开始复现
           </Button>
 
           {experimentSteps.length > 0 && (
-            <div style={{ 
-              width: '100%', 
-              maxWidth: '1100px', 
-              margin: '20px auto 0',
-              padding: '20px',
-              backgroundColor: '#fff',
-              borderRadius: '12px',
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.03)'
-            }}>
+            <div className="steps-container">
             <>
               <Divider />
-              <Title level={4}>复现进度</Title>
+              <Title level={4} className="steps-title">复现进度</Title>
               <Steps
                 direction="vertical"
                 current={currentStep}
                 items={experimentSteps.map((step) => ({
                   title: step.title,
                   description: renderStepContent(step),
-                  status: step.status === 'error' ? 'error' : undefined
+                  status: step.status === 'error' ? 'error' : undefined,
+                  icon: getStepIcon(step.status)
                 }))}
               />
             </>

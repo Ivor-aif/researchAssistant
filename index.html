@@ -5,11 +5,31 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AI 研究助手</title>
-    <!-- 直接引入MSW服务工作者脚本，确保它在应用加载前就被注册 -->
-    <script src="/mockServiceWorker.js"></script>
+    <!-- 移除直接引入MSW服务工作者脚本，让MSW自己注册 -->
   </head>
   <body>
-    <div id="root"></div>
+    <!-- 主根元素 -->
+    <div id="root">
+      <!-- 加载指示器 -->
+      <div style="display: flex; justify-content: center; align-items: center; height: 100vh; flex-direction: column;">
+        <div style="border: 4px solid #f3f3f3; border-top: 4px solid #1890ff; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite;"></div>
+        <p style="margin-top: 20px; font-family: Arial, sans-serif;">正在加载应用...</p>
+      </div>
+    </div>
+    <!-- 备用根元素，以防主根元素渲染失败 -->
+    <div id="fallback-root"></div>
+    <!-- 添加样式 -->
+    <style>
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      }
+    </style>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

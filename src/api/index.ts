@@ -1,5 +1,24 @@
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
+import type { AxiosResponse } from 'axios';
 import type { Paper, PaperSearchParams, InnovationPoint, UserProfile, ApiKeys } from '../types';
+
+// 通用错误处理函数
+const handleApiError = (error: unknown, context: string): never => {
+  console.error(`❌ ${context}调用失败:`, error);
+  
+  if (error instanceof AxiosError) {
+    if (error.response) {
+      console.error(`❌ ${context}错误响应状态:`, error.response.status);
+      console.error(`❌ ${context}错误响应数据:`, error.response.data);
+    } else if (error.request) {
+      console.error(`❌ ${context}请求未收到响应:`, error.request);
+    } else {
+      console.error(`❌ ${context}请求配置错误:`, error.message);
+    }
+  }
+  
+  throw error;
+};
 
 // 在文件顶部添加调试日志
 console.log('🔌 api/index.ts - API 客户端初始化');
@@ -83,15 +102,19 @@ apiClient.interceptors.response.use(
     console.log('✅ API响应数据:', response.data ? '有数据' : '无数据');
     return response;
   },
-  (error) => {
-    console.error('❌ API响应错误:', error.message);
-    if (error.response) {
-      console.error('❌ API错误状态:', error.response.status);
-      console.error('❌ API错误数据:', error.response.data);
-    } else if (error.request) {
-      console.error('❌ API请求未收到响应:', error.request);
+  (error: unknown) => {
+    if (error instanceof AxiosError) {
+      console.error('❌ API响应错误:', error.message);
+      if (error.response) {
+        console.error('❌ API错误状态:', error.response.status);
+        console.error('❌ API错误数据:', error.response.data);
+      } else if (error.request) {
+        console.error('❌ API请求未收到响应:', error.request);
+      } else {
+        console.error('❌ API请求配置错误:', error.message);
+      }
     } else {
-      console.error('❌ API请求配置错误:', error.message);
+      console.error('❌ API响应错误:', error);
     }
     return Promise.reject(error);
   }
@@ -105,9 +128,8 @@ export const paperApi = {
     try {
       const response = await apiClient.get('/research/papers', { params });
       return response.data;
-    } catch (error) {
-      console.error('❌ 论文搜索API调用失败:', error);
-      throw error;
+    } catch (error: unknown) {
+      return handleApiError(error, '论文搜索API');
     }
   },
   
@@ -117,9 +139,8 @@ export const paperApi = {
     try {
       const response = await apiClient.get('/research/papers/arxiv', { params: { query } });
       return response.data;
-    } catch (error) {
-      console.error('❌ arXiv论文搜索API调用失败:', error);
-      throw error;
+    } catch (error: unknown) {
+      return handleApiError(error, 'arXiv论文搜索API');
     }
   },
   
@@ -131,9 +152,8 @@ export const paperApi = {
         params: { query, source } 
       });
       return response.data;
-    } catch (error) {
-      console.error('❌ 自定义源论文搜索API调用失败:', error);
-      throw error;
+    } catch (error: unknown) {
+      return handleApiError(error, '自定义源论文搜索API');
     }
   },
   
@@ -143,9 +163,8 @@ export const paperApi = {
     try {
       const response = await apiClient.get(`/research/papers/${id}`);
       return response.data;
-    } catch (error) {
-      console.error('❌ 论文详情API调用失败:', error);
-      throw error;
+    } catch (error: unknown) {
+      return handleApiError(error, '论文详情API');
     }
   },
   
@@ -155,9 +174,8 @@ export const paperApi = {
     try {
       const response = await apiClient.post('/research/papers/save', paper);
       return response.data;
-    } catch (error) {
-      console.error('❌ 论文保存API调用失败:', error);
-      throw error;
+    } catch (error: unknown) {
+      return handleApiError(error, '论文保存API');
     }
   },
 };
@@ -171,9 +189,8 @@ export const innovationApi = {
     try {
       const response = await apiClient.post('/research/innovation/analyze', { text });
       return response.data;
-    } catch (error) {
-      console.error('❌ 创新点分析API调用失败:', error);
-      throw error;
+    } catch (error: unknown) {
+      return handleApiError(error, '创新点分析API');
     }
   },
   
@@ -192,9 +209,8 @@ export const innovationApi = {
         timeout: 180000, // 3分钟超时
       });
       return response.data;
-    } catch (error) {
-      console.error('❌ 文件创新点分析API调用失败:', error);
-      throw error;
+    } catch (error: unknown) {
+      return handleApiError(error, '文件创新点分析API');
     }
   },
 };
@@ -204,12 +220,27 @@ export const userApi = {
   // 用户登录
   login: async (email: string, password: string): Promise<{ token: string, user: UserProfile }> => {
     console.log('🔑 调用用户登录API，邮箱:', email);
+    console.log('🔑 API基础URL:', import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000');
+    console.log('🔑 API模拟状态:', import.meta.env.VITE_ENABLE_API_MOCKING === 'true' ? '启用' : '禁用');
     try {
-      const response = await apiClient.post('/auth/login', { email, password });
+      // 使用表单格式发送请求
+      const formData = new URLSearchParams();
+      formData.append('username', email);
+      formData.append('password', password);
+      
+      console.log('🔑 发送登录请求，表单数据:', { username: email, password: '******' });
+      console.log('🔑 请求URL:', `${API_BASE_URL}auth/token`);
+      
+      const response = await apiClient.post('/auth/token', formData, {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      });
+      console.log('🔑 登录响应状态:', response.status);
+      console.log('🔑 登录响应数据:', JSON.stringify(response.data));
       return response.data;
-    } catch (error) {
-      console.error('❌ 用户登录API调用失败:', error);
-      throw error;
+    } catch (error: unknown) {
+      return handleApiError(error, '用户登录API');
     }
   },
   
@@ -219,9 +250,8 @@ export const userApi = {
     try {
       const response = await apiClient.post('/auth/register', userData);
       return response.data;
-    } catch (error) {
-      console.error('❌ 用户注册API调用失败:', error);
-      throw error;
+    } catch (error: unknown) {
+      return handleApiError(error, '用户注册API');
     }
   },
   
@@ -231,9 +261,8 @@ export const userApi = {
     try {
       const response = await apiClient.get('/auth/profile');
       return response.data;
-    } catch (error) {
-      console.error('❌ 获取用户资料API调用失败:', error);
-      throw error;
+    } catch (error: unknown) {
+      return handleApiError(error, '获取用户资料API');
     }
   },
   
@@ -243,9 +272,8 @@ export const userApi = {
     try {
       const response = await apiClient.put('/auth/profile', profileData);
       return response.data;
-    } catch (error) {
-      console.error('❌ 更新用户资料API调用失败:', error);
-      throw error;
+    } catch (error: unknown) {
+      return handleApiError(error, '更新用户资料API');
     }
   },
   
@@ -255,9 +283,8 @@ export const userApi = {
     try {
       const response = await apiClient.get('/auth/api-keys');
       return response.data;
-    } catch (error) {
-      console.error('❌ 获取API密钥API调用失败:', error);
-      throw error;
+    } catch (error: unknown) {
+      return handleApiError(error, '获取API密钥API');
     }
   },
   
@@ -267,9 +294,8 @@ export const userApi = {
     try {
       const response = await apiClient.put('/auth/api-keys', keys);
       return response.data;
-    } catch (error) {
-      console.error('❌ 更新API密钥API调用失败:', error);
-      throw error;
+    } catch (error: unknown) {
+      return handleApiError(error, '更新API密钥API');
     }
   },
 };
@@ -286,9 +312,8 @@ export const aiApi = {
         conversation_id: conversationId 
       });
       return response.data;
-    } catch (error) {
-      console.error('❌ AI助手API调用失败:', error);
-      throw error;
+    } catch (error: unknown) {
+      return handleApiError(error, 'AI助手API');
     }
   },
   
@@ -298,9 +323,8 @@ export const aiApi = {
     try {
       const response = await apiClient.get(`/ai/conversations/${conversationId}`);
       return response.data;
-    } catch (error) {
-      console.error('❌ 获取对话历史API调用失败:', error);
-      throw error;
+    } catch (error: unknown) {
+      return handleApiError(error, '获取对话历史API');
     }
   },
   
@@ -310,9 +334,8 @@ export const aiApi = {
     try {
       const response = await apiClient.get('/ai/conversations');
       return response.data;
-    } catch (error) {
-      console.error('❌ 获取对话列表API调用失败:', error);
-      throw error;
+    } catch (error: unknown) {
+      return handleApiError(error, '获取对话列表API');
     }
   },
   
@@ -322,9 +345,8 @@ export const aiApi = {
     try {
       const response = await apiClient.post('/ai/conversations', { title });
       return response.data;
-    } catch (error) {
-      console.error('❌ 创建对话API调用失败:', error);
-      throw error;
+    } catch (error: unknown) {
+      return handleApiError(error, '创建对话API');
     }
   },
   
@@ -333,9 +355,8 @@ export const aiApi = {
     console.log('🗑️ 调用删除对话API，对话ID:', conversationId);
     try {
       await apiClient.delete(`/ai/conversations/${conversationId}`);
-    } catch (error) {
-      console.error('❌ 删除对话API调用失败:', error);
-      throw error;
+    } catch (error: unknown) {
+      return handleApiError(error, '删除对话API');
     }
   },
   
@@ -345,9 +366,8 @@ export const aiApi = {
     try {
       const response = await apiClient.get('/ai/api-keys');
       return response.data;
-    } catch (error) {
-      console.error('❌ 获取AI API密钥API调用失败:', error);
-      throw error;
+    } catch (error: unknown) {
+      return handleApiError(error, '获取AI API密钥API');
     }
   },
   
@@ -357,9 +377,8 @@ export const aiApi = {
     try {
       const response = await apiClient.post('/ai/api-keys', apiKeys);
       return response.data;
-    } catch (error) {
-      console.error('❌ 更新AI API密钥API调用失败:', error);
-      throw error;
+    } catch (error: unknown) {
+      return handleApiError(error, '更新AI API密钥API');
     }
   }
 };
@@ -372,7 +391,8 @@ export const projectApi = {
     try {
       const response = await apiClient.get('/research/projects');
       return response.data;
-    } catch (error) {
+    } catch (error: unknown) {
+      return handleApiError(error, '获取项目列表API');
       console.error('❌ 获取项目列表API调用失败:', error);
       throw error;
     }
@@ -384,9 +404,8 @@ export const projectApi = {
     try {
       const response = await apiClient.get(`/research/projects/${id}`);
       return response.data;
-    } catch (error) {
-      console.error('❌ 获取项目详情API调用失败:', error);
-      throw error;
+    } catch (error: unknown) {
+      return handleApiError(error, '获取项目详情API');
     }
   },
   
@@ -396,9 +415,8 @@ export const projectApi = {
     try {
       const response = await apiClient.post('/research/projects', project);
       return response.data;
-    } catch (error) {
-      console.error('❌ 创建项目API调用失败:', error);
-      throw error;
+    } catch (error: unknown) {
+      return handleApiError(error, '创建项目API');
     }
   },
   
@@ -408,9 +426,8 @@ export const projectApi = {
     try {
       const response = await apiClient.put(`/research/projects/${id}`, project);
       return response.data;
-    } catch (error) {
-      console.error('❌ 更新项目API调用失败:', error);
-      throw error;
+    } catch (error: unknown) {
+      return handleApiError(error, '更新项目API');
     }
   },
   
@@ -419,9 +436,8 @@ export const projectApi = {
     console.log('🗑️ 调用删除项目API，ID:', id);
     try {
       await apiClient.delete(`/research/projects/${id}`);
-    } catch (error) {
-      console.error('❌ 删除项目API调用失败:', error);
-      throw error;
+    } catch (error: unknown) {
+      return handleApiError(error, '删除项目API');
     }
   },
 };
@@ -434,9 +450,8 @@ export const progressApi = {
     try {
       const response = await apiClient.get('/research/progress');
       return response;
-    } catch (error) {
-      console.error('❌ 获取研究进度API调用失败:', error);
-      throw error;
+    } catch (error: unknown) {
+      return handleApiError(error, '获取研究进度API');
     }
   },
   
@@ -446,9 +461,8 @@ export const progressApi = {
     try {
       const response = await apiClient.post('/research/progress', progressData);
       return response;
-    } catch (error) {
-      console.error('❌ 创建研究进度API调用失败:', error);
-      throw error;
+    } catch (error: unknown) {
+      return handleApiError(error, '创建研究进度API');
     }
   },
   
@@ -458,9 +472,8 @@ export const progressApi = {
     try {
       const response = await apiClient.post('/research/progress', projectData);
       return response;
-    } catch (error) {
-      console.error('❌ 创建研究项目API调用失败:', error);
-      throw error;
+    } catch (error: unknown) {
+      return handleApiError(error, '创建研究项目API');
     }
   },
   
@@ -470,9 +483,8 @@ export const progressApi = {
     try {
       const response = await apiClient.put(`/research/progress/${id}`, progressData);
       return response;
-    } catch (error) {
-      console.error('❌ 更新研究进度API调用失败:', error);
-      throw error;
+    } catch (error: unknown) {
+      return handleApiError(error, '更新研究进度API');
     }
   },
   
@@ -482,9 +494,8 @@ export const progressApi = {
     try {
       const response = await apiClient.delete(`/research/progress/${id}`);
       return response;
-    } catch (error) {
-      console.error('❌ 删除研究进度API调用失败:', error);
-      throw error;
+    } catch (error: unknown) {
+      return handleApiError(error, '删除研究进度API');
     }
   }
 };
@@ -497,9 +508,8 @@ export const reportApi = {
     try {
       const response = await apiClient.post('/research/reports/generate', reportData);
       return response;
-    } catch (error) {
-      console.error('❌ 生成报告API调用失败:', error);
-      throw error;
+    } catch (error: unknown) {
+      return handleApiError(error, '生成报告API');
     }
   },
   
@@ -509,9 +519,8 @@ export const reportApi = {
     try {
       const response = await apiClient.get('/research/reports');
       return response;
-    } catch (error) {
-      console.error('❌ 获取报告列表API调用失败:', error);
-      throw error;
+    } catch (error: unknown) {
+      return handleApiError(error, '获取报告列表API');
     }
   },
   
@@ -521,9 +530,8 @@ export const reportApi = {
     try {
       const response = await apiClient.get(`/research/reports/${id}`);
       return response;
-    } catch (error) {
-      console.error('❌ 获取报告详情API调用失败:', error);
-      throw error;
+    } catch (error: unknown) {
+      return handleApiError(error, '获取报告详情API');
     }
   },
   
@@ -536,9 +544,8 @@ export const reportApi = {
         responseType: 'blob'
       });
       return response;
-    } catch (error) {
-      console.error('❌ 导出报告API调用失败:', error);
-      throw error;
+    } catch (error: unknown) {
+      return handleApiError(error, '导出报告API');
     }
   },
   
@@ -549,12 +556,10 @@ export const reportApi = {
       // 这里假设下载报告API的路径和参数
       const response = await apiClient.post('/research/reports/download', reportData);
       return response;
-    } catch (error) {
-      console.error('❌ 下载报告API调用失败:', error);
-      throw error;
+    } catch (error: unknown) {
+      return handleApiError(error, '下载报告API');
     }
   }
 };
 
 // 所有API已经通过命名导出，不需要默认导出
-// 移除默认导出以避免重复声明错误

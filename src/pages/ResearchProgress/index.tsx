@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Timeline, Button, Modal, Form, Input, DatePicker, Space, Typography, message, Spin } from 'antd';
-import { PlusOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import { Card, Timeline, Button, Modal, Form, Input, DatePicker, Typography, message, Spin } from 'antd';
+import { PlusOutlined, HistoryOutlined } from '@ant-design/icons';
 import { progressApi } from '../../api';
+import './style.css';
 
 const { Title, Text } = Typography;
 
@@ -142,72 +143,42 @@ const ResearchProgress: React.FC = () => {
   };
 
   return (
-    <div>
+    <div className="research-progress-container">
       <Card
-        title={<div style={{ fontSize: '22px', textAlign: 'center', padding: '10px 0' }}>研究进度</div>}
+        title={
+          <div className="progress-header">
+            <HistoryOutlined className="progress-icon" />
+            研究进度
+          </div>
+        }
         bordered={false}
-        style={{ 
-          width: '100%', 
-          maxWidth: '1200px',
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
-          borderRadius: '12px'
-        }}
-        extra={<Button type="primary" icon={<PlusOutlined />} onClick={handleAddMilestone} size="large" style={{ borderRadius: '8px' }}>添加里程碑</Button>}
+        className="progress-card"
+        extra={<Button type="primary" icon={<PlusOutlined />} onClick={handleAddMilestone} size="large" className="add-button">添加里程碑</Button>}
       >
         {loading ? (
-          <div style={{ 
-            textAlign: 'center', 
-            padding: '80px 0', 
-            color: '#999',
-            backgroundColor: '#f9f9f9',
-            borderRadius: '12px',
-            margin: '0 auto',
-            width: '100%',
-            maxWidth: '1100px'
-          }}>
+          <div className="loading-container">
             <Spin size="large" />
-            <p style={{ marginTop: '20px', fontSize: '16px' }}>加载中...</p>
+            <p className="loading-text">加载中...</p>
           </div>
         ) : milestones.length === 0 ? (
-          <div style={{ 
-            textAlign: 'center', 
-            padding: '80px 0', 
-            color: '#999',
-            backgroundColor: '#f9f9f9',
-            borderRadius: '12px',
-            margin: '0 auto',
-            width: '100%',
-            maxWidth: '1100px'
-          }}>
-            <p style={{ fontSize: '16px' }}>暂无研究进度数据，请添加里程碑</p>
+          <div className="empty-container">
+            <p className="empty-text">暂无研究进度数据，请添加里程碑</p>
           </div>
         ) : (
-          <div style={{ 
-            width: '100%', 
-            maxWidth: '1100px', 
-            margin: '0 auto',
-            padding: '20px',
-            backgroundColor: '#fff',
-            borderRadius: '12px',
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.03)'
-          }}>
+          <div className="timeline-container">
             <Timeline mode="left">
               {milestones.map((milestone) => (
                 <Timeline.Item
                   key={milestone.id}
                   color={getTimelineColor(milestone.status)}
-                  label={<span style={{ fontSize: '15px' }}>{milestone.date}</span>}
+                  label={<span className="timeline-date">{milestone.date}</span>}
                 >
                   <Card
                     size="small"
-                    title={<span style={{ fontSize: '18px', fontWeight: 'bold', color: '#1890ff' }}>{milestone.title}</span>}
-                    style={{ 
-                      marginBottom: 16, 
-                      borderRadius: '10px',
-                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.03)'
-                    }}
+                    title={<span className="milestone-title">{milestone.title}</span>}
+                    className="milestone-card"
                   >
-                    <p style={{ fontSize: '15px', lineHeight: '1.8' }}>{milestone.description}</p>
+                    <p className="milestone-description">{milestone.description}</p>
                   </Card>
                 </Timeline.Item>
               ))}
@@ -218,11 +189,12 @@ const ResearchProgress: React.FC = () => {
 
       {/* 添加里程碑模态框 */}
       <Modal
-        title="添加研究里程碑"
+        title={<span className="modal-title">添加研究里程碑</span>}
         open={isModalVisible}
         onOk={handleModalOk}
         onCancel={() => setIsModalVisible(false)}
         destroyOnClose
+        footer={null}
       >
         <Form
           form={form}
@@ -230,27 +202,32 @@ const ResearchProgress: React.FC = () => {
         >
           <Form.Item
             name="title"
-            label="标题"
+            label={<span className="form-label">标题</span>}
             rules={[{ required: true, message: '请输入里程碑标题' }]}
           >
-            <Input placeholder="请输入里程碑标题" />
+            <Input placeholder="请输入里程碑标题" className="form-input" />
           </Form.Item>
           
           <Form.Item
             name="description"
-            label="描述"
+            label={<span className="form-label">描述</span>}
             rules={[{ required: true, message: '请输入里程碑描述' }]}
           >
-            <Input.TextArea rows={4} placeholder="请输入里程碑描述" />
+            <Input.TextArea rows={4} placeholder="请输入里程碑描述" className="form-textarea" />
           </Form.Item>
           
           <Form.Item
             name="date"
-            label="日期"
+            label={<span className="form-label">日期</span>}
             rules={[{ required: true, message: '请选择日期' }]}
           >
-            <DatePicker style={{ width: '100%' }} />
+            <DatePicker className="form-datepicker" />
           </Form.Item>
+
+          <div className="modal-footer">
+            <Button className="cancel-button" onClick={() => setIsModalVisible(false)}>取消</Button>
+            <Button type="primary" className="submit-button" onClick={handleModalOk}>添加</Button>
+          </div>
         </Form>
       </Modal>
     </div>

@@ -24,6 +24,9 @@ try:
 except Exception as e:
     print(f"警告: 数据库初始化失败 - {e}")
     HAS_DATABASE = False
+    # 导入模拟路由，在数据库连接失败时使用
+    from backend.src.routers.auth import router as auth_router
+    from backend.src.routers.research import router as research_router
 
 app = FastAPI(
     title="Research Assistant API",
@@ -44,9 +47,8 @@ app.add_middleware(
 app.include_router(ai_router, prefix="/api")
 
 # 注册数据库相关路由
-if HAS_DATABASE:
-    app.include_router(auth_router, prefix="/api")
-    app.include_router(research_router, prefix="/api")
+app.include_router(auth_router, prefix="/api")
+app.include_router(research_router, prefix="/api")
 
 @app.get("/")
 async def root():
@@ -54,4 +56,6 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    # 从环境变量中获取端口号，默认为8000
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="127.0.0.1", port=port)

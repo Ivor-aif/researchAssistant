@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Input, Button, List, Typography, Spin, message, Upload, Tabs, Progress } from 'antd';
-import { BulbOutlined, UploadOutlined, FileTextOutlined, FilePdfOutlined } from '@ant-design/icons';
+import { Card, Input, Button, List, Typography, Spin, message, Upload, Tabs, Progress, Space, Tag, Row, Col, Tooltip } from 'antd';
+import { BulbOutlined, UploadOutlined, FileTextOutlined, FilePdfOutlined, ExperimentOutlined, RocketOutlined, ThunderboltOutlined, StarOutlined, QuestionCircleOutlined, CheckCircleOutlined, ClockCircleOutlined } from '@ant-design/icons';
 import { innovationApi } from '../../api';
+import './style.css';
 
 const { TextArea } = Input;
 const { Title, Paragraph, Text } = Typography;
@@ -235,15 +236,26 @@ const InnovationAnalysis: React.FC = () => {
       try {
         // 尝试调用后端API进行文件分析
         console.log('调用API分析文件');
-        const response = await innovationApi.analyzeFileInnovation(formData);
+        // 从formData中获取文件
+        const file = formData.get('file') as File;
+        if (!file) {
+          throw new Error('未找到上传的文件');
+        }
+        
+        const response = await innovationApi.analyzeFile(file);
         console.log('API返回结果:', response);
         
         updateProgress('AI分析创新点', 100, 'completed');
         updateProgress('生成分析报告', 100, 'completed');
         
-        if (response && response.success) {
-          setInnovationPoints(response.innovations || []);
-          message.success(`成功从文件中识别出 ${response.innovations?.length || 0} 个创新点`);
+        if (response && response.innovation_points) {
+          setInnovationPoints(response.innovation_points || []);
+          message.success(`成功从文件中识别出 ${response.innovation_points?.length || 0} 个创新点`);
+          
+          // 如果有摘要，也可以设置
+          if (response.summary) {
+            // 这里可以添加设置摘要的逻辑，如果组件中有相应的状态
+          }
         } else {
           throw new Error('API返回格式不正确');
         }
@@ -344,20 +356,29 @@ const InnovationAnalysis: React.FC = () => {
     if (analysisProgress.length === 0) return null;
     
     return (
-      <div style={{ margin: '20px 0', padding: '20px', backgroundColor: '#f9f9f9', borderRadius: '8px' }}>
-        <Title level={5} style={{ marginBottom: '16px' }}>分析进度</Title>
-        {analysisProgress.map((step, index) => (
-          <div key={step.step} style={{ marginBottom: '12px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+      <div className="progress-container">
+        <Title level={5} className="progress-title">分析进度</Title>
+        {analysisProgress.map((step) => (
+          <div key={step.step} className="progress-step">
+            <div className="progress-step-header">
               <Text>{step.step}</Text>
-              <Text type={step.status === 'error' ? 'danger' : step.status === 'completed' ? 'success' : 'secondary'}>
-                {step.status === 'error' ? '失败' : step.status === 'completed' ? '完成' : '进行中'}
-              </Text>
+              <Tag color={
+                step.status === 'error' ? 'error' : 
+                step.status === 'completed' ? 'success' : 'processing'
+              }>
+                {step.status === 'error' ? '失败' : 
+                 step.status === 'completed' ? '完成' : '进行中'}
+              </Tag>
             </div>
             <Progress 
               percent={step.progress} 
-              status={step.status === 'error' ? 'exception' : step.status === 'completed' ? 'success' : 'active'}
+              status={step.status === 'error' ? 'exception' : 
+                     step.status === 'completed' ? 'success' : 'active'}
               size="small"
+              strokeColor={{
+                '0%': '#108ee9',
+                '100%': '#87d068',
+              }}
             />
           </div>
         ))}
@@ -365,38 +386,60 @@ const InnovationAnalysis: React.FC = () => {
     );
   };
 
+  const getDifficultyColor = (difficulty: string) => {
+    switch(difficulty) {
+      case '低':
+      case '较低':
+        return '#52c41a';
+      case '中等':
+        return '#faad14';
+      case '高':
+      case '较高':
+        return '#ff4d4f';
+      default:
+        return '#1890ff';
+    }
+  };
+
+  const getDifficultyIcon = (difficulty: string) => {
+    switch(difficulty) {
+      case '低':
+      case '较低':
+        return <CheckCircleOutlined />;
+      case '中等':
+        return <ClockCircleOutlined />;
+      case '高':
+      case '较高':
+        return <ThunderboltOutlined />;
+      default:
+        return <QuestionCircleOutlined />;
+    }
+  };
+
   return (
-    <div style={{ 
-      padding: '20px', 
-      display: 'flex', 
-      justifyContent: 'center',
-      width: '100%',
-      minHeight: '100vh',
-      backgroundColor: '#f5f5f5'
-    }}>
+    <div className="innovation-analysis-container">
       <Card 
-        title={<div style={{ fontSize: '22px', textAlign: 'center', padding: '10px 0' }}>创新点分析</div>} 
+        className="innovation-card"
+        title={
+          <div className="innovation-header">
+            <ExperimentOutlined className="innovation-icon" />
+            <span>创新点分析</span>
+          </div>
+        } 
         bordered={false}
-        style={{ 
-          width: '100%', 
-          maxWidth: '1200px',
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
-          borderRadius: '12px'
-        }}
       >
-        <Tabs activeKey={activeTab} onChange={setActiveTab} centered>
-          <TabPane tab={<span><FileTextOutlined />论文ID/DOI</span>} key="1">
-            <div style={{ 
-              width: '100%', 
-              maxWidth: '800px', 
-              margin: '0 auto 40px',
-              padding: '0 20px'
-            }}>
+        <Tabs activeKey={activeTab} onChange={setActiveTab} centered className="innovation-tabs">
+          <TabPane 
+            tab={<span><FileTextOutlined />论文ID/DOI</span>} 
+            key="1"
+            className="tab-content"
+          >
+            <div className="input-container">
               <TextArea 
                 placeholder="请输入论文ID或DOI，例如：10.1038/nature12373 或 arXiv:1706.03762" 
                 value={paperId}
                 onChange={(e) => setPaperId(e.target.value)}
-                style={{ marginBottom: '20px', borderRadius: '8px' }}
+                className="paper-input"
                 rows={3}
               />
               <Button 
@@ -404,164 +447,160 @@ const InnovationAnalysis: React.FC = () => {
                 icon={<BulbOutlined />} 
                 loading={loading}
                 onClick={handleAnalyzeById}
-                size="large"
-            style={{ width: '100%', height: '46px', borderRadius: '8px' }}
-          >
-            分析创新点
-          </Button>
-        </div>
-      </TabPane>
-      
-      <TabPane tab={<span><FilePdfOutlined />文件上传</span>} key="2">
-        <div style={{ 
-          width: '100%', 
-          maxWidth: '800px', 
-          margin: '0 auto 40px',
-          padding: '0 20px'
-        }}>
-          <Dragger
-            beforeUpload={handleFileUpload}
-            showUploadList={false}
-            style={{ marginBottom: '20px' }}
-          >
-            <p className="ant-upload-drag-icon">
-              <UploadOutlined style={{ fontSize: '48px', color: '#1890ff' }} />
-            </p>
-            <p className="ant-upload-text">点击或拖拽文件到此区域上传</p>
-            <p className="ant-upload-hint">
-              支持PDF和HTML格式的论文文件，文件大小不超过10MB
-            </p>
-          </Dragger>
-          
-          {uploadedFile && (
-            <div style={{ 
-              padding: '12px', 
-              backgroundColor: '#f6ffed', 
-              border: '1px solid #b7eb8f', 
-              borderRadius: '6px',
-              marginBottom: '20px'
-            }}>
-              <Text strong>已上传文件：</Text>
-              <Text>{uploadedFile.name}</Text>
-              <Text type="secondary"> ({(uploadedFile.size / 1024 / 1024).toFixed(2)} MB)</Text>
+                className="analyze-button"
+              >
+                分析创新点
+              </Button>
             </div>
-          )}
+          </TabPane>
           
-          <Button 
-            type="primary" 
-            icon={<BulbOutlined />} 
-            loading={loading}
-            onClick={handleAnalyzeFile}
-            disabled={!uploadedFile}
-            size="large"
-            style={{ width: '100%', height: '46px', borderRadius: '8px' }}
+          <TabPane 
+            tab={<span><FilePdfOutlined />文件上传</span>} 
+            key="2"
+            className="tab-content"
           >
-            分析文件创新点
-          </Button>
-        </div>
-      </TabPane>
-    </Tabs>
-    
-    {renderProgressSteps()}
+            <div className="input-container">
+              <Dragger
+                beforeUpload={handleFileUpload}
+                showUploadList={false}
+                className="upload-container"
+              >
+                <div className="upload-content">
+                  <p className="upload-icon">
+                    <UploadOutlined />
+                  </p>
+                  <p className="upload-text">点击或拖拽文件到此区域上传</p>
+                  <p className="upload-hint">
+                    支持PDF和HTML格式的论文文件，文件大小不超过10MB
+                  </p>
+                </div>
+              </Dragger>
+              
+              {uploadedFile && (
+                <div className="file-info">
+                  <Text strong>已上传文件：</Text>
+                  <Text>{uploadedFile.name}</Text>
+                  <Text type="secondary"> ({(uploadedFile.size / 1024 / 1024).toFixed(2)} MB)</Text>
+                </div>
+              )}
+              
+              <Button 
+                type="primary" 
+                icon={<BulbOutlined />} 
+                loading={loading}
+                onClick={handleAnalyzeFile}
+                disabled={!uploadedFile}
+                className="analyze-button"
+              >
+                分析文件创新点
+              </Button>
+            </div>
+          </TabPane>
+        </Tabs>
+        
+        {renderProgressSteps()}
 
         {loading ? (
-          <div style={{ 
-            textAlign: 'center', 
-            padding: '80px 0', 
-            color: '#999',
-            backgroundColor: '#f9f9f9',
-            borderRadius: '12px',
-            margin: '0 auto',
-            width: '100%',
-            maxWidth: '1100px'
-          }}>
+          <div className="loading-container">
             <Spin size="large" />
-            <p style={{ marginTop: '20px', fontSize: '16px' }}>正在分析论文创新点，请稍候...</p>
+            <p className="loading-text">正在分析论文创新点，请稍候...</p>
           </div>
         ) : (
-          <div>
+          <div className="results-container">
             {innovationPoints.length > 0 && (
-              <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                <Title level={4}>发现 {innovationPoints.length} 个创新点</Title>
+              <div className="results-header">
+                <Title level={4}>
+                  <RocketOutlined /> 发现 {innovationPoints.length} 个创新点
+                </Title>
               </div>
             )}
             <List
               itemLayout="vertical"
               dataSource={innovationPoints}
-              style={{ 
-                background: '#fff', 
-                borderRadius: '12px',
-                width: '100%',
-                maxWidth: '1100px',
-                margin: '0 auto',
-                padding: '0 20px'
-              }}
+              className="innovation-list"
               renderItem={(item) => (
-                <List.Item
-                  style={{ 
-                    padding: '24px', 
-                    marginBottom: '24px', 
-                    border: '1px solid #f0f0f0', 
-                    borderRadius: '12px',
-                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.04)',
-                    transition: 'all 0.3s ease'
-                  }}
-                >
+                <List.Item className="innovation-item">
                   <Card 
-                    type="inner" 
-                    title={<span style={{ fontSize: '20px', fontWeight: 'bold', color: '#1890ff' }}>{item.title}</span>}
-                    style={{ borderRadius: '10px' }}
-                    extra={
-                      <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                        {item.novelty_score && (
-                          <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: '12px', color: '#666' }}>新颖性</div>
-                            <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#52c41a' }}>
-                              {item.novelty_score}/10
-                            </div>
-                          </div>
-                        )}
-                        {item.technical_feasibility && (
-                          <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: '12px', color: '#666' }}>可行性</div>
-                            <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#1890ff' }}>
-                              {item.technical_feasibility}/10
-                            </div>
-                          </div>
-                        )}
+                    className="innovation-point-card"
+                    title={
+                      <div className="innovation-title">
+                        <BulbOutlined className="title-icon" />
+                        <span>{item.title}</span>
                       </div>
                     }
+                    extra={
+                      <Space size="large" className="innovation-metrics">
+                        {item.novelty_score && (
+                          <Tooltip title="创新性评分">
+                            <div className="metric-container">
+                              <div className="metric-label">新颖性</div>
+                              <div className="metric-value" style={{ color: '#52c41a' }}>
+                                <StarOutlined /> {item.novelty_score}/10
+                              </div>
+                            </div>
+                          </Tooltip>
+                        )}
+                        {item.technical_feasibility && (
+                          <Tooltip title="技术可行性评分">
+                            <div className="metric-container">
+                              <div className="metric-label">可行性</div>
+                              <div className="metric-value" style={{ color: '#1890ff' }}>
+                                <RocketOutlined /> {item.technical_feasibility}/10
+                              </div>
+                            </div>
+                          </Tooltip>
+                        )}
+                      </Space>
+                    }
                   >
-                    <Paragraph style={{ fontSize: '15px', lineHeight: '1.8' }}>
-                      <Text strong style={{ fontSize: '15px' }}>描述：</Text> {item.description}
-                    </Paragraph>
-                    <Paragraph style={{ fontSize: '15px', lineHeight: '1.8' }}>
-                      <Text strong style={{ fontSize: '15px' }}>重要性：</Text> {item.significance}
-                    </Paragraph>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px' }}>
-                      <div>
-                        <Text strong>相关度：</Text> 
-                        <Progress 
-                          percent={item.relevance * 20} 
-                          size="small" 
-                          style={{ width: '100px', display: 'inline-block', marginLeft: '8px' }}
-                          format={() => `${item.relevance}/5`}
-                        />
-                      </div>
-                      {item.implementation_difficulty && (
-                        <div>
-                          <Text strong>实现难度：</Text>
-                          <Text 
-                            style={{ 
-                              color: item.implementation_difficulty === '较低' ? '#52c41a' : 
-                                     item.implementation_difficulty === '中等' ? '#faad14' : '#ff4d4f',
-                              marginLeft: '8px'
-                            }}
-                          >
-                            {item.implementation_difficulty}
-                          </Text>
-                        </div>
-                      )}
+                    <div className="innovation-content">
+                      <Row gutter={[16, 16]}>
+                        <Col span={24}>
+                          <div className="content-section">
+                            <Text strong className="section-title">描述：</Text> 
+                            <Paragraph className="section-content">{item.description}</Paragraph>
+                          </div>
+                        </Col>
+                        <Col span={24}>
+                          <div className="content-section">
+                            <Text strong className="section-title">重要性：</Text> 
+                            <Paragraph className="section-content">{item.significance}</Paragraph>
+                          </div>
+                        </Col>
+                        <Col span={24}>
+                          <div className="innovation-footer">
+                            <div className="footer-item">
+                              <Tooltip title="与研究方向的相关程度">
+                                <Text strong>相关度：</Text> 
+                                <Progress 
+                                  percent={item.relevance * 20} 
+                                  size="small" 
+                                  className="relevance-progress"
+                                  format={() => `${item.relevance}/5`}
+                                  strokeColor={{
+                                    '0%': '#108ee9',
+                                    '100%': '#87d068',
+                                  }}
+                                />
+                              </Tooltip>
+                            </div>
+                            {item.implementation_difficulty && (
+                              <div className="footer-item">
+                                <Tooltip title="实现该创新点的技术难度">
+                                  <Text strong>实现难度：</Text>
+                                  <Tag 
+                                    icon={getDifficultyIcon(item.implementation_difficulty)}
+                                    color={getDifficultyColor(item.implementation_difficulty)}
+                                    className="difficulty-tag"
+                                  >
+                                    {item.implementation_difficulty}
+                                  </Tag>
+                                </Tooltip>
+                              </div>
+                            )}
+                          </div>
+                        </Col>
+                      </Row>
                     </div>
                   </Card>
                 </List.Item>

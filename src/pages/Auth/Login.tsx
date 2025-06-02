@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { Form, Input, Button, Card, Typography, message, Space } from 'antd';
 import { UserOutlined, LockOutlined, MailOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { useDispatch } from 'react-redux';
-import { login } from './authSlice';
+import { useAuth } from '../../contexts/AuthContext';
 
 const { Title, Text } = Typography;
 
@@ -14,23 +13,33 @@ interface LoginFormData {
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
-  const dispatch = useDispatch();
+  const { login } = useAuth();
   const [loading, setLoading] = useState(false);
 
   const onFinish = async (values: LoginFormData) => {
     try {
       setLoading(true);
-      // 调用 Redux action 进行登录
-      const result = await dispatch(login(values));
+      console.log('Login.onFinish - 开始登录，用户名:', values.email);
+      console.log('Login.onFinish - 环境变量:', {
+        API_BASE_URL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',
+        ENABLE_API_MOCKING: import.meta.env.VITE_ENABLE_API_MOCKING === 'true' ? '启用' : '禁用',
+        NODE_ENV: import.meta.env.VITE_NODE_ENV || 'development'
+      });
       
-      if (result.payload) {
-        message.success('登录成功');
-        navigate('/dashboard');
-      } else {
-        message.error('登录失败，请检查邮箱和密码');
+      // 调用 AuthContext 中的 login 函数进行登录
+      console.log('Login.onFinish - 调用 AuthContext.login 函数');
+      const success = await login(values.email, values.password);
+      
+      console.log('Login.onFinish - 登录结果:', success ? '成功' : '失败');
+      if (success) {
+        // 登录成功后导航到论文搜索页面
+        message.success('登录成功，正在跳转...');
+        console.log('Login.onFinish - 导航到 /paper-search');
+        navigate('/paper-search');
       }
+      // 登录失败的消息已在 login 函数中处理
     } catch (error: any) {
-      console.error('登录失败:', error);
+      console.error('Login.onFinish - 登录失败:', error);
       message.error('登录失败: ' + (error.message || '未知错误'));
     } finally {
       setLoading(false);
