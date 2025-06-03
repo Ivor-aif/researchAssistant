@@ -1,25 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import { Input, Button, Card, List, Tag, Space, Typography, Skeleton, Select, Checkbox, Empty, Modal, Switch, message } from 'antd';
-import { SearchOutlined, HeartOutlined, HeartFilled, DownloadOutlined, InfoCircleOutlined, FileSearchOutlined, SettingOutlined } from '@ant-design/icons';
-import { paperApi } from '../../api';
+import { Input, Button, Card, List, Tag, Space, Typography, Skeleton, Select, Checkbox, Empty, Modal, Switch, message, Form } from 'antd';
+import { SearchOutlined, HeartOutlined, HeartFilled, DownloadOutlined, InfoCircleOutlined, FileSearchOutlined, SettingOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import { getFavoritePapers, addToFavorites, removeFromFavorites } from '../../services/favoriteService';
 import { searchFromMultipleSources } from '../../services/paperSearchService';
+import type { Paper as ImportedPaper } from '../../types/paper';
 import './style.css';
 
 const { Title, Text, Paragraph } = Typography;
 const { Option } = Select;
 const { Search } = Input;
 
-interface Paper {
+// 扩展导入的Paper接口，添加组件需要的额外字段
+interface Paper extends ImportedPaper {
+  published_date?: string;
+  paper_type?: string;
+  // 确保包含ImportedPaper中的必需字段
+  url?: string; // 已在ImportedPaper中定义为可选
+}
+
+// 自定义搜索源接口
+interface CustomSource {
   id: string;
-  title: string;
-  authors: string[];
-  abstract: string;
-  keywords: string[];
+  name: string;
   url: string;
-  published_date: string;
-  source: string;
-  paper_type: string;
 }
 
 const PaperSearch: React.FC = () => {
@@ -31,12 +34,17 @@ const PaperSearch: React.FC = () => {
   const [paperTypes, setPaperTypes] = useState<string[]>([]);
   const [selectedPaperTypes, setSelectedPaperTypes] = useState<string[]>([]);
   const [settingsVisible, setSettingsVisible] = useState(false);
+  // 修改默认搜索源，只启用arXiv
   const [searchSources, setSearchSources] = useState({
     arxiv: true,
-    ieee: true,
-    springer: true,
-    acm: true
+    ieee: false,
+    springer: false,
+    acm: false
   });
+  // 添加自定义搜索源状态
+  const [customSources, setCustomSources] = useState<CustomSource[]>([]);
+  const [newSourceName, setNewSourceName] = useState('');
+  const [newSourceUrl, setNewSourceUrl] = useState('');
 
   // 获取论文类型列表
   useEffect(() => {
@@ -71,27 +79,37 @@ const PaperSearch: React.FC = () => {
     setLoading(true);
 
     try {
-      // 准备搜索参数
-      const searchParams = {
+      // 记录搜索参数（仅用于调试）
+      console.log('搜索参数:', {
         query: value,
         sort_by: sortBy,
         paper_types: selectedPaperTypes.length > 0 ? selectedPaperTypes : undefined,
-        sources: Object.entries(searchSources)
+        sources: searchSources ? Object.entries(searchSources)
           .filter(([_, enabled]) => enabled)
-          .map(([source]) => source)
-      };
+          .map(([source]) => source) : []
+      });
 
-      // 准备搜索源
-      const sources = Object.entries(searchSources)
+      // 准备搜索源 - 包括内置源和自定义源
+      const enabledBuiltinSources = searchSources ? Object.entries(searchSources)
         .filter(([_, enabled]) => enabled)
         .map(([source]) => ({
           id: source,
           name: source.charAt(0).toUpperCase() + source.slice(1),
           url: `https://${source}.org` // 简单模拟URL
-        }));
+        })) : [];
+      
+      // 合并内置源和自定义源
+      const allSources = [...enabledBuiltinSources, ...(customSources || [])];
+      
+      if (allSources.length === 0) {
+        message.warning('请至少选择一个搜索源');
+        setLoading(false);
+        return;
+      }
 
-      // 调用搜索服务
-      const results = await searchFromMultipleSources(value, sources);
+      // 使用本地模拟数据，避免调用后端API
+      console.log('使用本地模拟数据，不调用后端API');
+      const results = await searchFromMultipleSources(value, allSources);
       setPapers(results);
     } catch (error) {
       console.error('搜索失败:', error);
@@ -189,6 +207,60 @@ const PaperSearch: React.FC = () => {
       ...prev,
       [source]: checked
     }));
+  };
+
+  // 添加自定义搜索源
+  const handleAddCustomSource = () => {
+    // 验证输入
+    if (!newSourceName.trim()) {
+      message.warning('请输入搜索源名称');
+      return;
+    }
+    
+    if (!newSourceUrl.trim()) {
+      message.warning('请输入搜索源URL');
+      return;
+    }
+    
+    // 验证URL格式
+    try {
+      new URL(newSourceUrl); // 检查URL是否有效
+    } catch (e) {
+      message.error('请输入有效的URL，包含http://或https://');
+      return;
+    }
+    
+    // 检查是否已存在同名源
+    const sourceExists = customSources.some(
+      source => source.name.toLowerCase() === newSourceName.toLowerCase()
+    );
+    
+    if (sourceExists) {
+      message.warning('已存在同名搜索源');
+      return;
+    }
+    
+    // 创建新的自定义源
+    const newSource: CustomSource = {
+      id: `custom-${Date.now()}`,
+      name: newSourceName,
+      url: newSourceUrl
+    };
+    
+    // 添加到自定义源列表
+    setCustomSources([...customSources, newSource]);
+    
+    // 清空输入框
+    setNewSourceName('');
+    setNewSourceUrl('');
+    
+    message.success(`已添加搜索源: ${newSourceName}`);
+  };
+  
+  // 删除自定义搜索源
+  const handleRemoveCustomSource = (sourceId: string) => {
+    setCustomSources(customSources.filter(source => source.id !== sourceId));
+    message.success('已删除搜索源');
   };
 
   // 应用搜索设置
@@ -336,7 +408,7 @@ const PaperSearch: React.FC = () => {
       >
         <Title level={5} className="settings-title">选择搜索源</Title>
         <div className="settings-item">
-          <Space direction="vertical">
+          <Space direction="vertical" style={{ width: '100%' }}>
             <div>
               <Switch checked={searchSources.arxiv} onChange={(checked) => handleSourceChange('arxiv', checked)} />
               <Text style={{ marginLeft: 8 }}>arXiv</Text>
@@ -352,6 +424,55 @@ const PaperSearch: React.FC = () => {
             <div>
               <Switch checked={searchSources.acm} onChange={(checked) => handleSourceChange('acm', checked)} />
               <Text style={{ marginLeft: 8 }}>ACM Digital Library</Text>
+            </div>
+          </Space>
+        </div>
+        
+        <Title level={5} className="settings-title" style={{ marginTop: 20 }}>自定义搜索源</Title>
+        <div className="settings-item">
+          <Space direction="vertical" style={{ width: '100%' }}>
+            {/* 显示已添加的自定义搜索源 */}
+            {customSources.map(source => (
+              <div key={source.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <Text>{source.name}</Text>
+                  <Text type="secondary" style={{ marginLeft: 8, fontSize: '12px' }}>{source.url}</Text>
+                </div>
+                <Button 
+                  type="text" 
+                  danger 
+                  icon={<DeleteOutlined />} 
+                  onClick={() => handleRemoveCustomSource(source.id)}
+                />
+              </div>
+            ))}
+            
+            {/* 添加新的自定义搜索源 */}
+            <div style={{ marginTop: 10 }}>
+              <Form layout="vertical" style={{ marginBottom: 0 }}>
+                <Form.Item label="搜索源名称" style={{ marginBottom: 8 }}>
+                  <Input 
+                    placeholder="例如: Google Scholar" 
+                    value={newSourceName}
+                    onChange={(e) => setNewSourceName(e.target.value)}
+                  />
+                </Form.Item>
+                <Form.Item label="搜索源URL" style={{ marginBottom: 8 }}>
+                  <Input 
+                    placeholder="例如: https://scholar.google.com" 
+                    value={newSourceUrl}
+                    onChange={(e) => setNewSourceUrl(e.target.value)}
+                  />
+                </Form.Item>
+                <Button 
+                  type="dashed" 
+                  icon={<PlusOutlined />} 
+                  onClick={handleAddCustomSource}
+                  style={{ width: '100%' }}
+                >
+                  添加搜索源
+                </Button>
+              </Form>
             </div>
           </Space>
         </div>

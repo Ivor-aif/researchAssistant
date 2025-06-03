@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Timeline, Button, Modal, Form, Input, DatePicker, Typography, message, Spin } from 'antd';
+import { Card, Timeline, Button, Modal, Form, Input, DatePicker, message, Spin } from 'antd';
 import { PlusOutlined, HistoryOutlined } from '@ant-design/icons';
 import { progressApi } from '../../api';
 import './style.css';
-
-const { Title, Text } = Typography;
 
 interface ResearchMilestone {
   id: string;

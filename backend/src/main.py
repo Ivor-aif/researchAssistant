@@ -9,14 +9,12 @@ root_dir = str(pathlib.Path(__file__).parent.parent.parent)
 if root_dir not in sys.path:
     sys.path.append(root_dir)
 
-# 导入AI路由（不依赖数据库）
-from backend.src.routers.ai import router as ai_router
+# 导入路由
+from backend.src.routers import api_router
 
 # 条件导入数据库相关模块
 try:
     from backend.src.database import engine, Base
-    from backend.src.routers.auth import router as auth_router
-    from backend.src.routers.research import router as research_router
     # 创建数据库表
     if os.environ.get('SKIP_DB_INIT') != 'true':
         Base.metadata.create_all(bind=engine)
@@ -24,9 +22,6 @@ try:
 except Exception as e:
     print(f"警告: 数据库初始化失败 - {e}")
     HAS_DATABASE = False
-    # 导入模拟路由，在数据库连接失败时使用
-    from backend.src.routers.auth import router as auth_router
-    from backend.src.routers.research import router as research_router
 
 app = FastAPI(
     title="Research Assistant API",
@@ -43,12 +38,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 注册AI路由（始终可用）
-app.include_router(ai_router, prefix="/api")
-
-# 注册数据库相关路由
-app.include_router(auth_router, prefix="/api")
-app.include_router(research_router, prefix="/api")
+# 注册所有路由
+app.include_router(api_router, prefix="/api")
 
 @app.get("/")
 async def root():
