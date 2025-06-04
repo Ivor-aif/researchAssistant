@@ -9,10 +9,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 @router.post("/search")
-async def search_from_multiple_sources(
-    query: str = Body(...),
-    sources: List[Dict[str, Any]] = Body(...)
-) -> Dict[str, Any]:
+async def search_from_multiple_sources(data: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
     """
     从多个源搜索论文
     
@@ -23,12 +20,14 @@ async def search_from_multiple_sources(
     返回:
     - 搜索结果列表
     """
+    query = data.get("query", "")
+    sources = data.get("sources", [])
     try:
         logger.info(f"开始搜索论文，关键词: {query}")
         logger.info(f"搜索源: {sources}")
         
         # 验证输入参数
-        if not query or not query.strip():
+        if not query or not isinstance(query, str) or not query.strip():
             raise HTTPException(status_code=400, detail="搜索关键词不能为空")
 
         if not sources or not isinstance(sources, list) or len(sources) == 0:
@@ -78,7 +77,8 @@ async def search_from_multiple_sources(
                     "citations": 50 - (i * 10),
                     "source": source_id,
                     "url": f"{source.get('url')}/paper/{i+1}",
-                    "published_date": f"2023-{6-i}-15"
+                    "published_date": f"2023-{6-i}-15",
+                    "paper_type": "研究论文" if i % 2 == 0 else "综述"
                 }
                 results.append(paper)
         

@@ -1,5 +1,6 @@
 import { message } from 'antd';
 import type { Paper } from '../types/paper';
+import axios from 'axios';
 
 /**
  * 从arXiv搜索论文
@@ -202,15 +203,9 @@ export const searchFromMultipleSources = async (
     console.log('🔍 开始从多个源搜索论文:', query);
     console.log('🔍 搜索源:', sources);
     
-    // 使用本地模拟数据进行搜索
-    console.log('🔍 使用本地模拟数据进行搜索');
-    const mockPapers = getMockPapersByKeyword(query, sources);
-    return mockPapers;
-    
-    /* 暂时注释掉API调用，使用本地模拟数据
     // 调用后端API进行搜索
     try {
-      const response = await axios.post('/api/paper-search/search', {
+      const response = await axios.post('http://localhost:8001/api/paper-search/search', {
         query,
         sources
       });
@@ -229,10 +224,10 @@ export const searchFromMultipleSources = async (
       message.error('搜索请求失败，使用本地模拟数据');
       
       // 使用本地模拟数据作为备选
+      console.log('🔍 使用本地模拟数据进行搜索');
       const mockPapers = getMockPapersByKeyword(query, sources);
       return mockPapers;
     }
-    */
   } catch (error) {
     console.error('搜索论文时发生错误:', error);
     message.error('搜索过程中发生错误');
@@ -253,7 +248,7 @@ export const getMockPapersByKeyword = (query: string, sources: Array<{id: string
   const mockPapers: Paper[] = [];
   
   // 为每个搜索源生成模拟数据
-  sources.forEach((source, index) => {
+  sources.forEach((source) => {
     // 为每个源生成2-4篇论文
     const paperCount = Math.floor(Math.random() * 3) + 2; // 2到4之间的随机数
     

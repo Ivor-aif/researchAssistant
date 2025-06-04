@@ -377,9 +377,11 @@ const PaperSearch: React.FC = () => {
                     {paper.abstract}
                   </Paragraph>
                   <div className="paper-keywords">
-                    {paper.keywords.map((keyword, index) => (
-                      <Tag key={index} color="blue" className="keyword-tag">{keyword}</Tag>
-                    ))}
+                    {paper.keywords && Array.isArray(paper.keywords) ? 
+                      paper.keywords.map((keyword, index) => (
+                        <Tag key={index} color="blue" className="keyword-tag">{keyword}</Tag>
+                      ))
+                    : null}
                   </div>
                 </List.Item>
               );

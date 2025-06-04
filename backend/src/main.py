@@ -47,6 +47,14 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
-    # 从环境变量中获取端口号，默认为8000
-    port = int(os.environ.get("PORT", 8000))
+    import argparse
+    
+    # 解析命令行参数
+    parser = argparse.ArgumentParser(description="启动Research Assistant API服务器")
+    parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", 8000)), help="服务器端口号")
+    args = parser.parse_args()
+    
+    # 使用命令行参数中的端口号
+    port = args.port
+    print(f"启动服务器在端口: {port}")
     uvicorn.run(app, host="127.0.0.1", port=port)
