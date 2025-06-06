@@ -5,13 +5,13 @@
  */
 export interface Paper {
   id: string;
-  title: string;
-  authors: string[];
-  abstract: string;
-  keywords: string[];
-  year: number;
-  journal: string;
-  citations: number;
+  title?: string;
+  authors?: string[];
+  abstract?: string;
+  keywords?: string[];
+  year?: number;
+  journal?: string;
+  citations?: number;
   source?: string; // 论文来源
   url?: string; // 论文链接
   isFavorite?: boolean; // 是否已收藏

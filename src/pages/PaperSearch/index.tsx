@@ -65,7 +65,10 @@ const PaperSearch: React.FC = () => {
   useEffect(() => {
     // 使用favoriteService获取收藏的论文
     const favoritePapers = getFavoritePapers();
-    setFavorites(favoritePapers.map(paper => paper.id));
+    // 确保每个paper对象都有id属性
+    setFavorites(favoritePapers
+      .filter(paper => paper && paper.id) // 过滤掉没有id的paper
+      .map(paper => paper.id));
   }, []);
 
   // 处理搜索
@@ -85,13 +88,13 @@ const PaperSearch: React.FC = () => {
         sort_by: sortBy,
         paper_types: selectedPaperTypes.length > 0 ? selectedPaperTypes : undefined,
         sources: searchSources ? Object.entries(searchSources)
-          .filter(([_, enabled]) => enabled)
+          .filter(([_source, enabled]) => enabled)
           .map(([source]) => source) : []
       });
 
       // 准备搜索源 - 包括内置源和自定义源
       const enabledBuiltinSources = searchSources ? Object.entries(searchSources)
-        .filter(([_, enabled]) => enabled)
+        .filter(([_source, enabled]) => enabled)
         .map(([source]) => ({
           id: source,
           name: source.charAt(0).toUpperCase() + source.slice(1),
@@ -110,10 +113,19 @@ const PaperSearch: React.FC = () => {
       // 使用本地模拟数据，避免调用后端API
       console.log('使用本地模拟数据，不调用后端API');
       const results = await searchFromMultipleSources(value, allSources);
-      setPapers(results);
+      
+      // 确保results是一个有效的数组
+      if (Array.isArray(results)) {
+        setPapers(results);
+      } else {
+        console.error('搜索结果不是有效的数组:', results);
+        setPapers([]);
+        message.error('搜索结果格式错误');
+      }
     } catch (error) {
       console.error('搜索失败:', error);
       message.error('搜索失败，请稍后重试');
+      setPapers([]); // 确保在错误时papers仍然是数组
     } finally {
       setLoading(false);
     }
@@ -122,8 +134,14 @@ const PaperSearch: React.FC = () => {
   // 处理收藏/取消收藏
   const handleFavorite = async (paperId: string, isFavorite: boolean) => {
     try {
+      // 确保paperId存在
+      if (!paperId) {
+        console.error('论文ID为空');
+        return;
+      }
+      
       // 找到对应的论文
-      const paper = papers.find(p => p.id === paperId);
+      const paper = papers.find(p => p && p.id === paperId);
       if (!paper) {
         message.error('未找到论文信息');
         return;
@@ -151,6 +169,13 @@ const PaperSearch: React.FC = () => {
   // 处理下载
   const handleDownload = async (paper: Paper) => {
     try {
+      // 确保paper对象存在
+      if (!paper) {
+        console.error('论文对象为空');
+        message.error('无法下载：论文信息不完整');
+        return;
+      }
+      
       // 模拟下载功能
       message.info('正在准备下载...');
       
@@ -163,7 +188,7 @@ const PaperSearch: React.FC = () => {
         const link = document.createElement('a');
         link.href = paper.url;
         link.target = '_blank';
-        link.download = `${paper.title}.pdf`;
+        link.download = `${paper.title || '未知论文'}.pdf`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -181,6 +206,13 @@ const PaperSearch: React.FC = () => {
 
   // 处理查看详情
   const handleViewDetails = (paper: Paper) => {
+    // 确保paper对象存在
+    if (!paper) {
+      console.error('论文对象为空');
+      message.error('无法查看详情：论文信息不完整');
+      return;
+    }
+    
     // 这里可以导航到论文详情页面，或者打开一个详情模态框
     console.log('查看论文详情:', paper);
   };
@@ -225,7 +257,7 @@ const PaperSearch: React.FC = () => {
     // 验证URL格式
     try {
       new URL(newSourceUrl); // 检查URL是否有效
-    } catch (e) {
+    } catch (_e) {
       message.error('请输入有效的URL，包含http://或https://');
       return;
     }
@@ -299,7 +331,7 @@ const PaperSearch: React.FC = () => {
           <div className="filter-item">
             <Text strong>论文类型：</Text>
             <Checkbox.Group
-              options={paperTypes.map(type => ({ label: type, value: type }))}
+              options={paperTypes && Array.isArray(paperTypes) ? paperTypes.map(type => ({ label: type, value: type })) : []}
               value={selectedPaperTypes}
               onChange={handlePaperTypeChange}
             />
@@ -331,12 +363,14 @@ const PaperSearch: React.FC = () => {
             )}
             className="paper-list"
           />
-        ) : papers.length > 0 ? (
+        ) : papers && Array.isArray(papers) && papers.length > 0 ? (
           <List
             itemLayout="vertical"
-            dataSource={papers}
+            dataSource={papers && Array.isArray(papers) ? papers.filter(paper => paper && typeof paper === 'object') : []}
             renderItem={paper => {
-              const isFavorite = favorites.includes(paper.id);
+              // 确保paper.id存在
+              const paperId = paper?.id || '';
+              const isFavorite = !!(paperId && favorites.includes(paperId));
               
               return (
                 <List.Item
@@ -344,7 +378,7 @@ const PaperSearch: React.FC = () => {
                   actions={[
                     <Button 
                       icon={isFavorite ? <HeartFilled /> : <HeartOutlined />} 
-                      onClick={() => handleFavorite(paper.id, isFavorite)}
+                      onClick={() => paperId && handleFavorite(paperId, isFavorite)}
                       className={`action-button favorite-button ${isFavorite ? 'favorited' : ''}`}
                     >
                       {isFavorite ? '已收藏' : '收藏'}
@@ -365,16 +399,16 @@ const PaperSearch: React.FC = () => {
                     </Button>
                   ]}
                 >
-                  <Title level={5} className="paper-title">{paper.title}</Title>
+                  <Title level={5} className="paper-title">{paper.title || '未知标题'}</Title>
                   <div className="paper-meta">
-                    <Text>作者: {paper.authors.join(', ')}</Text>
+                    <Text>作者: {paper.authors && Array.isArray(paper.authors) ? paper.authors.join(', ') : '未知'}</Text>
                     <br />
-                    <Text>发布日期: {paper.published_date}</Text>
+                    <Text>发布年份: {paper.year || '未知'}</Text>
                     <br />
-                    <Text>来源: {paper.source}</Text>
+                    <Text>来源: {paper.source || '未知'}</Text>
                   </div>
                   <Paragraph ellipsis={{ rows: 3 }} className="paper-abstract">
-                    {paper.abstract}
+                    {paper.abstract || '暂无摘要'}
                   </Paragraph>
                   <div className="paper-keywords">
                     {paper.keywords && Array.isArray(paper.keywords) ? 
@@ -434,7 +468,7 @@ const PaperSearch: React.FC = () => {
         <div className="settings-item">
           <Space direction="vertical" style={{ width: '100%' }}>
             {/* 显示已添加的自定义搜索源 */}
-            {customSources.map(source => (
+            {customSources && Array.isArray(customSources) ? customSources.map(source => (
               <div key={source.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <Text>{source.name}</Text>
@@ -447,7 +481,7 @@ const PaperSearch: React.FC = () => {
                   onClick={() => handleRemoveCustomSource(source.id)}
                 />
               </div>
-            ))}
+            )) : null}
             
             {/* 添加新的自定义搜索源 */}
             <div style={{ marginTop: 10 }}>

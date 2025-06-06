@@ -146,11 +146,16 @@ export const handlers = [
     await delay(500);
     
     // 根据查询参数过滤论文
-    const filteredPapers = mockPapers.filter(paper => 
-      paper.title.toLowerCase().includes(query.toLowerCase()) ||
-      paper.abstract.toLowerCase().includes(query.toLowerCase()) ||
-      paper.keywords.some(keyword => keyword.toLowerCase().includes(query.toLowerCase()))
-    );
+    const filteredPapers = mockPapers.filter(paper => {
+      if (!paper) return false;
+      
+      const titleMatch = paper.title ? paper.title.toLowerCase().includes(query.toLowerCase()) : false;
+      const abstractMatch = paper.abstract ? paper.abstract.toLowerCase().includes(query.toLowerCase()) : false;
+      const keywordsMatch = paper.keywords && Array.isArray(paper.keywords) ? 
+        paper.keywords.some(keyword => keyword && keyword.toLowerCase().includes(query.toLowerCase())) : false;
+      
+      return titleMatch || abstractMatch || keywordsMatch;
+    });
     
     console.log('📤 MSW - 返回论文搜索结果:', filteredPapers.length, '条记录');
     return HttpResponse.json({
@@ -171,12 +176,17 @@ export const handlers = [
     
     // 根据查询参数过滤arXiv论文
     const filteredPapers = mockPapers
-      .filter(paper => paper.source === 'arXiv')
-      .filter(paper => 
-        paper.title.toLowerCase().includes(query.toLowerCase()) ||
-        paper.abstract.toLowerCase().includes(query.toLowerCase()) ||
-        paper.keywords.some(keyword => keyword.toLowerCase().includes(query.toLowerCase()))
-      );
+      .filter(paper => paper && paper.source === 'arXiv')
+      .filter(paper => {
+        if (!paper) return false;
+        
+        const titleMatch = paper.title ? paper.title.toLowerCase().includes(query.toLowerCase()) : false;
+        const abstractMatch = paper.abstract ? paper.abstract.toLowerCase().includes(query.toLowerCase()) : false;
+        const keywordsMatch = paper.keywords && Array.isArray(paper.keywords) ? 
+          paper.keywords.some(keyword => keyword && keyword.toLowerCase().includes(query.toLowerCase())) : false;
+        
+        return titleMatch || abstractMatch || keywordsMatch;
+      });
     
     console.log('📤 MSW - 返回arXiv论文搜索结果:', filteredPapers.length, '条记录');
     return HttpResponse.json({
@@ -198,12 +208,17 @@ export const handlers = [
     
     // 根据查询参数和源过滤论文
     const filteredPapers = mockPapers
-      .filter(paper => paper.source === source)
-      .filter(paper => 
-        paper.title.toLowerCase().includes(query.toLowerCase()) ||
-        paper.abstract.toLowerCase().includes(query.toLowerCase()) ||
-        paper.keywords.some(keyword => keyword.toLowerCase().includes(query.toLowerCase()))
-      );
+      .filter(paper => paper && paper.source === source)
+      .filter(paper => {
+        if (!paper) return false;
+        
+        const titleMatch = paper.title ? paper.title.toLowerCase().includes(query.toLowerCase()) : false;
+        const abstractMatch = paper.abstract ? paper.abstract.toLowerCase().includes(query.toLowerCase()) : false;
+        const keywordsMatch = paper.keywords && Array.isArray(paper.keywords) ? 
+          paper.keywords.some(keyword => keyword && keyword.toLowerCase().includes(query.toLowerCase())) : false;
+        
+        return titleMatch || abstractMatch || keywordsMatch;
+      });
     
     console.log('📤 MSW - 返回自定义源论文搜索结果:', filteredPapers.length, '条记录');
     return HttpResponse.json({
@@ -226,7 +241,7 @@ export const handlers = [
       return new HttpResponse(null, { status: 404 })
     }
     
-    console.log('✅ MSW返回论文详情:', paper.title)
+    console.log('✅ MSW返回论文详情:', paper.title || '未知标题')
     return HttpResponse.json(paper)
   }),
   
@@ -296,13 +311,18 @@ export const handlers = [
     console.log('🔍 MSW处理arXiv搜索请求:', query)
     
     // 根据查询过滤论文，只返回arXiv来源的论文
-    let filteredPapers = mockPapers.filter(paper => paper.source === 'arXiv')
+    let filteredPapers = mockPapers.filter(paper => paper && paper.source === 'arXiv')
     if (query) {
-      filteredPapers = filteredPapers.filter(paper => 
-        paper.title.toLowerCase().includes(query.toLowerCase()) ||
-        paper.abstract.toLowerCase().includes(query.toLowerCase()) ||
-        paper.keywords.some(keyword => keyword.toLowerCase().includes(query.toLowerCase()))
-      )
+      filteredPapers = filteredPapers.filter(paper => {
+        if (!paper) return false;
+        
+        const titleMatch = paper.title ? paper.title.toLowerCase().includes(query.toLowerCase()) : false;
+        const abstractMatch = paper.abstract ? paper.abstract.toLowerCase().includes(query.toLowerCase()) : false;
+        const keywordsMatch = paper.keywords && Array.isArray(paper.keywords) ? 
+          paper.keywords.some(keyword => keyword && keyword.toLowerCase().includes(query.toLowerCase())) : false;
+        
+        return titleMatch || abstractMatch || keywordsMatch;
+      })
     }
     
     console.log('🔍 MSW返回arXiv论文数量:', filteredPapers.length)
@@ -325,19 +345,24 @@ export const handlers = [
     console.log('🔍 MSW处理自定义源搜索请求:', query, '源:', source)
     
     // 根据查询和源过滤论文
-    let filteredPapers = mockPapers
+    let filteredPapers = mockPapers.filter(paper => paper !== null && paper !== undefined)
     if (source) {
-      filteredPapers = mockPapers.filter(paper => 
-        paper.source && paper.source.toLowerCase() === source.toLowerCase()
+      filteredPapers = filteredPapers.filter(paper => 
+        paper && paper.source && paper.source.toLowerCase() === source.toLowerCase()
       )
     }
     
     if (query) {
-      filteredPapers = filteredPapers.filter(paper => 
-        paper.title.toLowerCase().includes(query.toLowerCase()) ||
-        paper.abstract.toLowerCase().includes(query.toLowerCase()) ||
-        paper.keywords.some(keyword => keyword.toLowerCase().includes(query.toLowerCase()))
-      )
+      filteredPapers = filteredPapers.filter(paper => {
+        if (!paper) return false;
+        
+        const titleMatch = paper.title ? paper.title.toLowerCase().includes(query.toLowerCase()) : false;
+        const abstractMatch = paper.abstract ? paper.abstract.toLowerCase().includes(query.toLowerCase()) : false;
+        const keywordsMatch = paper.keywords && Array.isArray(paper.keywords) ? 
+          paper.keywords.some(keyword => keyword && keyword.toLowerCase().includes(query.toLowerCase())) : false;
+        
+        return titleMatch || abstractMatch || keywordsMatch;
+      })
     }
     
     console.log('🔍 MSW返回自定义源论文数量:', filteredPapers.length)

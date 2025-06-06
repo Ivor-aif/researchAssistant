@@ -179,7 +179,7 @@ export const searchCustomSource = async (query: string, sourceUrl: string, sourc
 };
 
 /**
- * 从多个源搜索论文
+ * 从多个来源搜索论文
  * @param query 搜索关键词
  * @param sources 搜索源列表
  * @returns 论文列表
@@ -190,8 +190,8 @@ export const searchFromMultipleSources = async (
 ): Promise<Paper[]> => {
   try {
     // 验证输入参数
-    if (!query || query.trim() === '') {
-      message.warning('搜索关键词不能为空');
+    if (!query || typeof query !== 'string' || query.trim() === '') {
+      message.warning('搜索关键词不能为空或无效');
       return [];
     }
 
@@ -200,8 +200,25 @@ export const searchFromMultipleSources = async (
       return [];
     }
     
-    console.log('🔍 开始从多个源搜索论文:', query);
-    console.log('🔍 搜索源:', sources);
+    // 验证每个source对象是否有必要的属性
+    const validSources = sources.filter(source => {
+      if (!source || typeof source !== 'object') {
+        console.warn('无效的搜索源对象:', source);
+        return false;
+      }
+      if (!source.id || !source.name || !source.url) {
+        console.warn('搜索源缺少必要属性:', source);
+        return false;
+      }
+      return true;
+    });
+    
+    if (validSources.length === 0) {
+      message.warning('没有有效的搜索源');
+      return [];
+    }
+    
+    console.log('🔍 从多个来源搜索论文，关键词:', query, '来源:', validSources);
     
     // 调用后端API进行搜索
     try {
@@ -242,13 +259,42 @@ export const searchFromMultipleSources = async (
  * @returns 模拟论文列表
  */
 export const getMockPapersByKeyword = (query: string, sources: Array<{id: string, name: string, url: string}>): Paper[] => {
+  // 添加防御性编程
+  if (!query || typeof query !== 'string' || query.trim() === '') {
+    console.error('搜索关键词无效');
+    return [];
+  }
+  
+  if (!Array.isArray(sources) || sources.length === 0) {
+    console.error('搜索源列表无效或为空');
+    return [];
+  }
+  
+  // 验证每个source对象是否有必要的属性
+  const validSources = sources.filter(source => {
+    if (!source || typeof source !== 'object') {
+      console.warn('无效的搜索源对象:', source);
+      return false;
+    }
+    if (!source.id || !source.name || !source.url) {
+      console.warn('搜索源缺少必要属性:', source);
+      return false;
+    }
+    return true;
+  });
+  
+  if (validSources.length === 0) {
+    console.error('没有有效的搜索源');
+    return [];
+  }
+  
   console.log('🔍 生成模拟论文数据，关键词:', query);
-  console.log('🔍 使用的搜索源:', sources);
+  console.log('🔍 使用的搜索源:', validSources);
   
   const mockPapers: Paper[] = [];
   
   // 为每个搜索源生成模拟数据
-  sources.forEach((source) => {
+  validSources.forEach((source) => {
     // 为每个源生成2-4篇论文
     const paperCount = Math.floor(Math.random() * 3) + 2; // 2到4之间的随机数
     

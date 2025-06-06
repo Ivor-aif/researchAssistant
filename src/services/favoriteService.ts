@@ -25,10 +25,17 @@ export const getFavoritePapers = (): Paper[] => {
  */
 export const addToFavorites = (paper: Paper): boolean => {
   try {
+    // 检查paper对象是否有效
+    if (!paper || !paper.id) {
+      console.error('添加收藏失败: 无效的论文对象或ID');
+      message.error('无法添加收藏: 论文数据无效');
+      return false;
+    }
+    
     const favoritePapers = getFavoritePapers();
     
     // 检查是否已经收藏
-    if (favoritePapers.some(p => p.id === paper.id)) {
+    if (favoritePapers.some(p => p && p.id === paper.id)) {
       message.info('该论文已在收藏列表中');
       return false;
     }
@@ -75,8 +82,15 @@ export const addToFavorites = (paper: Paper): boolean => {
  */
 export const removeFromFavorites = (paperId: string): boolean => {
   try {
+    // 检查paperId是否有效
+    if (!paperId) {
+      console.error('移除收藏失败: 无效的论文ID');
+      message.error('无法移除收藏: 论文ID无效');
+      return false;
+    }
+    
     const favoritePapers = getFavoritePapers();
-    const updatedFavorites = favoritePapers.filter(paper => paper.id !== paperId);
+    const updatedFavorites = favoritePapers.filter(paper => paper && paper.id !== paperId);
     
     localStorage.setItem(FAVORITE_PAPERS_KEY, JSON.stringify(updatedFavorites));
     message.success('已从收藏中移除');
@@ -115,8 +129,15 @@ export const removeFromFavorites = (paperId: string): boolean => {
  * @returns 更新后的收藏状态
  */
 export const toggleFavorite = (paper: Paper): boolean => {
+  // 检查paper对象是否有效
+  if (!paper) {
+    console.error('切换收藏状态失败: 无效的论文对象');
+    message.error('无法切换收藏状态: 论文数据无效');
+    return false;
+  }
+  
   if (paper.isFavorite) {
-    return removeFromFavorites(paper.id);
+    return paper.id ? removeFromFavorites(paper.id) : false;
   } else {
     return addToFavorites(paper);
   }
@@ -128,8 +149,11 @@ export const toggleFavorite = (paper: Paper): boolean => {
  * @returns 是否已收藏
  */
 export const isFavoritePaper = (paperId: string): boolean => {
+  if (!paperId) {
+    return false;
+  }
   const favoritePapers = getFavoritePapers();
-  return favoritePapers.some(paper => paper.id === paperId);
+  return favoritePapers.some(paper => paper && paper.id === paperId);
 };
 
 /**
@@ -138,11 +162,18 @@ export const isFavoritePaper = (paperId: string): boolean => {
  * @returns 更新收藏状态后的论文列表
  */
 export const loadFavoriteStatus = (papers: Paper[]): Paper[] => {
-  const favoritePapers = getFavoritePapers();
-  const favoriteIds = new Set(favoritePapers.map(paper => paper.id));
+  if (!papers || !Array.isArray(papers)) {
+    return [];
+  }
   
-  return papers.map(paper => ({
-    ...paper,
-    isFavorite: favoriteIds.has(paper.id)
-  }));
+  const favoritePapers = getFavoritePapers();
+  const favoriteIds = new Set(favoritePapers.filter(paper => paper && paper.id).map(paper => paper.id));
+  
+  return papers.map(paper => {
+    if (!paper) return paper;
+    return {
+      ...paper,
+      isFavorite: paper.id ? favoriteIds.has(paper.id) : false
+    };
+  });
 };
