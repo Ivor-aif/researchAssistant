@@ -1,197 +1,56 @@
-import { message } from 'antd';
 import type { Paper } from '../types/paper';
 import axios from 'axios';
+import { message } from 'antd';
 
-/**
- * 从arXiv搜索论文
- * @param query 搜索关键词
- * @returns 论文列表
- */
-export const searchArxiv = async (query: string): Promise<Paper[]> => {
-  try {
-    if (!query || query.trim() === '') {
-      console.warn('arXiv搜索关键词为空');
-      return [];
-    }
+// API基础URL
+const API_BASE_URL = 'http://localhost:8001/api';
 
-    console.log('🔍 从arXiv搜索论文，关键词:', query);
-    
-    // 模拟搜索结果，避免API调用错误
-    // 注意：这是一个临时解决方案，实际应用中应该使用真实API
-    console.log('🔍 使用模拟数据代替API调用');
-    
-    // 创建模拟数据
-    const mockPapers: Paper[] = [
-      {
-        id: `arxiv-${Date.now()}-1`,
-        title: `${query} 相关研究进展`,
-        authors: ['研究者 A', '研究者 B'],
-        abstract: `这是一篇关于 ${query} 的研究论文摘要。`,
-        keywords: [query, '研究', '科学'],
-        year: new Date().getFullYear(),
-        journal: 'arXiv',
-        citations: Math.floor(Math.random() * 100),
-        source: 'arxiv',
-        url: `https://arxiv.org/abs/${Date.now()}`,
-      },
-      {
-        id: `arxiv-${Date.now()}-2`,
-        title: `${query} 的实验分析`,
-        authors: ['研究者 C', '研究者 D'],
-        abstract: `本文提出了一种新的方法来分析 ${query} 相关问题。`,
-        keywords: [query, '分析', '方法'],
-        year: new Date().getFullYear() - 1,
-        journal: 'arXiv',
-        citations: Math.floor(Math.random() * 50),
-        source: 'arxiv',
-        url: `https://arxiv.org/abs/${Date.now() - 1000}`,
-      }
-    ];
-    
-    console.log('🔍 arXiv模拟搜索结果:', mockPapers);
-    return mockPapers;
-    
-    /* 注释掉原始API调用代码，避免错误
-    // 调用API获取数据
-    const response = await paperApi.searchArxiv(query);
-    console.log('🔍 arXiv搜索结果:', response);
-    
-    return response.papers || [];
-    */
-  } catch (error: any) {
-    console.error('从arXiv搜索论文失败:', error);
-    
-    // 获取详细错误信息
-    let errorMessage = '请稍后重试';
-    
-    // 尝试从错误对象中提取更详细的错误信息
-    if (error.response && error.response.data) {
-      const errorData = error.response.data;
-      if (errorData.error && errorData.error.message) {
-        errorMessage = errorData.error.message;
-      } else if (errorData.message) {
-        errorMessage = errorData.message;
-      } else if (errorData.error) {
-        errorMessage = typeof errorData.error === 'string' ? errorData.error : errorMessage;
-      } else if (errorData.detail) {
-        errorMessage = errorData.detail;
-      }
-    } else if (error.message) {
-      errorMessage = error.message;
-    }
-    
-    // 显示错误信息
-    message.error(`从arXiv搜索论文失败: ${errorMessage}`);
-    return [];
-  }
-};
+// 搜索源接口
+interface SearchSource {
+  id: string;
+  name: string;
+  url: string;
+}
 
-/**
- * 从自定义源搜索论文（使用API调用）
- * @param query 搜索关键词
- * @param sourceUrl 搜索源URL
- * @param sourceName 搜索源名称
- * @returns 论文列表
- */
-export const searchCustomSource = async (query: string, sourceUrl: string, sourceName: string): Promise<Paper[]> => {
-  try {
-    // 验证输入参数
-    if (!query || query.trim() === '') {
-      console.warn(`${sourceName}搜索关键词为空`);
-      return [];
-    }
+// API响应接口
+interface SearchResponse {
+  papers: Paper[];
+}
 
-    if (!sourceUrl || !sourceName) {
-      console.warn('搜索源URL或名称为空');
-      return [];
-    }
+interface SourcesResponse {
+  sources: Array<{
+    id: string;
+    name: string;
+    base_url: string;
+    enabled: boolean;
+    description: string;
+  }>;
+  total: number;
+}
 
-    console.log(`🔍 从${sourceName}搜索论文，关键词: ${query}`);
-    
-    // 模拟搜索结果，避免API调用错误
-    // 注意：这是一个临时解决方案，实际应用中应该使用真实API
-    console.log(`🔍 使用模拟数据代替${sourceName}的API调用`);
-    
-    // 创建模拟数据
-    const mockPapers: Paper[] = [
-      {
-        id: `${sourceName.toLowerCase()}-${Date.now()}-1`,
-        title: `${query} 在 ${sourceName} 领域的应用`,
-        authors: [`${sourceName} 研究员 A`, `${sourceName} 研究员 B`],
-        abstract: `本研究探讨了 ${query} 在 ${sourceName} 领域的应用和发展前景。`,
-        keywords: [query, sourceName, '研究'],
-        year: new Date().getFullYear(),
-        journal: `${sourceName} Journal`,
-        citations: Math.floor(Math.random() * 120),
-        source: sourceName.toLowerCase(),
-        url: `${sourceUrl}/paper/${Date.now()}`,
-      },
-      {
-        id: `${sourceName.toLowerCase()}-${Date.now()}-2`,
-        title: `${sourceName} 视角下的 ${query} 研究综述`,
-        authors: [`${sourceName} 学者 C`],
-        abstract: `本文综述了近年来 ${sourceName} 领域关于 ${query} 的研究进展。`,
-        keywords: [query, '综述', sourceName],
-        year: new Date().getFullYear() - 2,
-        journal: `${sourceName} Review`,
-        citations: Math.floor(Math.random() * 80),
-        source: sourceName.toLowerCase(),
-        url: `${sourceUrl}/review/${Date.now() - 2000}`,
-      }
-    ];
-    
-    console.log(`🔍 ${sourceName}模拟搜索结果:`, mockPapers);
-    return mockPapers;
-    
-    /* 注释掉原始API调用代码，避免错误
-    // 调用API获取数据
-    const response = await paperApi.searchCustom(query, sourceName);
-    console.log(`🔍 从${sourceName}搜索结果:`, response);
-    
-    return response.papers || [];
-    */
-  } catch (error: any) {
-    console.error(`从${sourceName}搜索论文失败:`, error);
-    
-    // 获取详细错误信息
-    let errorMessage = '请稍后重试';
-    
-    // 尝试从错误对象中提取更详细的错误信息
-    if (error.response && error.response.data) {
-      const errorData = error.response.data;
-      if (errorData.error && errorData.error.message) {
-        errorMessage = errorData.error.message;
-      } else if (errorData.message) {
-        errorMessage = errorData.message;
-      } else if (errorData.error) {
-        errorMessage = typeof errorData.error === 'string' ? errorData.error : errorMessage;
-      } else if (errorData.detail) {
-        errorMessage = errorData.detail;
-      }
-    } else if (error.message) {
-      errorMessage = error.message;
-    }
-    
-    // 显示错误信息
-    message.error(`从${sourceName}搜索论文失败: ${errorMessage}`);
-    return [];
-  }
-};
+interface DownloadResponse {
+  success: boolean;
+  download_url: string;
+  filename: string;
+  message: string;
+}
 
 /**
  * 从多个来源搜索论文
  * @param query 搜索关键词
  * @param sources 搜索源列表
+ * @param maxResults 每个源的最大结果数
  * @returns 论文列表
  */
 export const searchFromMultipleSources = async (
   query: string,
-  sources: Array<{id: string, name: string, url: string}>
+  sources: SearchSource[],
+  maxResults: number = 10
 ): Promise<Paper[]> => {
   try {
     // 验证输入参数
     if (!query || typeof query !== 'string' || query.trim() === '') {
-      message.warning('搜索关键词不能为空或无效');
+      message.warning('搜索关键词不能为空');
       return [];
     }
 
@@ -222,33 +81,170 @@ export const searchFromMultipleSources = async (
     
     // 调用后端API进行搜索
     try {
-      const response = await axios.post('http://localhost:8001/api/paper-search/search', {
-        query,
-        sources
+      const response = await axios.post<SearchResponse>(`${API_BASE_URL}/paper-search/search`, {
+        query: query.trim(),
+        sources: validSources,
+        max_results: maxResults
+      }, {
+        timeout: 30000, // 30秒超时
+        headers: {
+          'Content-Type': 'application/json'
+        }
       });
       
       console.log('🔍 搜索结果:', response.data);
       
       if (response.data && response.data.papers && Array.isArray(response.data.papers)) {
-        return response.data.papers;
+        const papers = response.data.papers;
+        message.success(`搜索完成，找到 ${papers.length} 篇论文`);
+        return papers;
       } else {
         console.error('API返回的数据格式不正确:', response.data);
         message.error('搜索结果格式不正确');
         return [];
       }
-    } catch (apiError) {
+    } catch (apiError: any) {
       console.error('API请求失败:', apiError);
-      message.error('搜索请求失败，使用本地模拟数据');
+      
+      // 检查是否是网络错误或超时
+      if (apiError.code === 'ECONNREFUSED' || apiError.code === 'ENOTFOUND') {
+        message.error('无法连接到后端服务，使用本地模拟数据');
+      } else if (apiError.code === 'ECONNABORTED') {
+        message.error('请求超时，使用本地模拟数据');
+      } else {
+        message.error('搜索请求失败，使用本地模拟数据');
+      }
       
       // 使用本地模拟数据作为备选
       console.log('🔍 使用本地模拟数据进行搜索');
-      const mockPapers = getMockPapersByKeyword(query, sources);
+      const mockPapers = getMockPapersByKeyword(query, validSources);
       return mockPapers;
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('搜索论文时发生错误:', error);
     message.error('搜索过程中发生错误');
     return [];
+  }
+};
+
+/**
+ * 获取可用的搜索源列表
+ * @returns 搜索源列表
+ */
+export const getAvailableSources = async (): Promise<SearchSource[]> => {
+  try {
+    const response = await axios.get<SourcesResponse>(`${API_BASE_URL}/paper-search/sources`, {
+      timeout: 10000
+    });
+    
+    if (response.data && response.data.sources && Array.isArray(response.data.sources)) {
+      return response.data.sources.map(source => ({
+        id: source.id,
+        name: source.name,
+        url: source.base_url
+      }));
+    }
+    
+    return getDefaultSources();
+  } catch (error: any) {
+    console.error('获取搜索源列表失败:', error);
+    message.warning('无法获取搜索源列表，使用默认配置');
+    return getDefaultSources();
+  }
+};
+
+/**
+ * 获取默认搜索源
+ * @returns 默认搜索源列表
+ */
+export const getDefaultSources = (): SearchSource[] => {
+  return [
+    {
+      id: 'arxiv',
+      name: 'arXiv',
+      url: 'https://arxiv.org'
+    },
+    {
+      id: 'ieee',
+      name: 'IEEE Xplore',
+      url: 'https://ieeexplore.ieee.org'
+    },
+    {
+      id: 'springer',
+      name: 'Springer',
+      url: 'https://link.springer.com'
+    },
+    {
+      id: 'acm',
+      name: 'ACM Digital Library',
+      url: 'https://dl.acm.org'
+    }
+  ];
+};
+
+/**
+ * 下载论文
+ * @param paperId 论文ID
+ * @param paperUrl 论文URL
+ * @returns 下载信息
+ */
+export const downloadPaper = async (paperId: string, paperUrl: string): Promise<boolean> => {
+  try {
+    if (!paperId || !paperUrl) {
+      message.error('论文信息不完整，无法下载');
+      return false;
+    }
+    
+    console.log('📥 请求下载论文:', paperId);
+    
+    // 调用后端API获取下载链接
+    try {
+      const response = await axios.post<DownloadResponse>(`${API_BASE_URL}/paper-search/download`, {
+        paper_id: paperId,
+        paper_url: paperUrl
+      }, {
+        timeout: 10000
+      });
+      
+      if (response.data && response.data.success && response.data.download_url) {
+        // 在新窗口中打开下载链接
+        const link = document.createElement('a');
+        link.href = response.data.download_url;
+        link.target = '_blank';
+        link.download = response.data.filename || `paper_${paperId}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        message.success(response.data.message || '论文下载已开始');
+        return true;
+      } else {
+        message.error('无法获取下载链接');
+        return false;
+      }
+    } catch (apiError: any) {
+      console.error('下载API请求失败:', apiError);
+      
+      // 如果API失败，尝试直接打开原始URL
+      if (paperUrl) {
+        const link = document.createElement('a');
+        link.href = paperUrl;
+        link.target = '_blank';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        message.info('已在新窗口中打开论文链接');
+        return true;
+      } else {
+        message.error('下载失败，无法获取论文链接');
+        return false;
+      }
+    }
+  } catch (error: any) {
+    console.error('下载论文时发生错误:', error);
+    message.error('下载过程中发生错误');
+    return false;
   }
 };
 
@@ -258,7 +254,7 @@ export const searchFromMultipleSources = async (
  * @param sources 搜索源列表
  * @returns 模拟论文列表
  */
-export const getMockPapersByKeyword = (query: string, sources: Array<{id: string, name: string, url: string}>): Paper[] => {
+export const getMockPapersByKeyword = (query: string, sources: SearchSource[]): Paper[] => {
   // 添加防御性编程
   if (!query || typeof query !== 'string' || query.trim() === '') {
     console.error('搜索关键词无效');
@@ -345,21 +341,7 @@ export const getMockPapersByKeyword = (query: string, sources: Array<{id: string
         `${source.name} Review`
       ];
       
-      // 生成论文类型
-      const paperTypes = [
-        'Research Paper',
-        'Review Article',
-        'Conference Paper',
-        'Case Study',
-        'Technical Report'
-      ];
-      
-      // 生成发布日期
-      const month = Math.floor(Math.random() * 12) + 1;
-      const day = Math.floor(Math.random() * 28) + 1;
-      const publishedDate = `${randomYear}-${month < 10 ? '0' + month : month}-${day < 10 ? '0' + day : day}`;
-      
-      // 创建论文对象 - 使用Paper类型而不是any
+      // 创建论文对象
       const paper: Paper = {
         id: `${source.id}-${randomId}-${i}`,
         title: title,
@@ -371,17 +353,52 @@ export const getMockPapersByKeyword = (query: string, sources: Array<{id: string
         citations: randomCitations,
         source: source.id,
         url: `${source.url}/paper/${randomId}`,
-        // 添加这些字段作为非类型化的额外属性
-        published_date: publishedDate,
-        paper_type: paperTypes[i % paperTypes.length]
-      } as Paper & { published_date: string; paper_type: string };
+        isFavorite: false
+      };
       
       mockPapers.push(paper);
     }
+  });
+  
+  // 按年份和引用次数排序
+  mockPapers.sort((a, b) => {
+    const yearDiff = (b.year || 0) - (a.year || 0);
+    if (yearDiff !== 0) return yearDiff;
+    return (b.citations || 0) - (a.citations || 0);
   });
   
   console.log('🔍 生成的模拟论文数据:', mockPapers);
   return mockPapers;
 };
 
-// Paper接口已在顶部导出，无需重复导出
+/**
+ * 从arXiv搜索论文（保留向后兼容性）
+ * @param query 搜索关键词
+ * @returns 论文列表
+ */
+export const searchArxiv = async (query: string): Promise<Paper[]> => {
+  const arxivSource: SearchSource = {
+    id: 'arxiv',
+    name: 'arXiv',
+    url: 'https://arxiv.org'
+  };
+  
+  return searchFromMultipleSources(query, [arxivSource]);
+};
+
+/**
+ * 从自定义源搜索论文（保留向后兼容性）
+ * @param query 搜索关键词
+ * @param sourceUrl 搜索源URL
+ * @param sourceName 搜索源名称
+ * @returns 论文列表
+ */
+export const searchCustomSource = async (query: string, sourceUrl: string, sourceName: string): Promise<Paper[]> => {
+  const customSource: SearchSource = {
+    id: sourceName.toLowerCase().replace(/\s+/g, '-'),
+    name: sourceName,
+    url: sourceUrl
+  };
+  
+  return searchFromMultipleSources(query, [customSource]);
+};
