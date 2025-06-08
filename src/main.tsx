@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
+import './performance.css'
 
 // 调试信息
 console.log('🚀 main.tsx - 应用入口文件开始执行')

@@ -1,0 +1,145 @@
+/* 性能优化 CSS - 减少动画卡顿 */
+
+/* 全局性能优化 */
+* {
+  /* 启用硬件加速 */
+  -webkit-transform: translateZ(0);
+  -moz-transform: translateZ(0);
+  -ms-transform: translateZ(0);
+  -o-transform: translateZ(0);
+  transform: translateZ(0);
+  
+  /* 优化渲染性能 */
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  -webkit-perspective: 1000;
+  perspective: 1000;
+}
+
+/* 动画元素优化 */
+.animated-element {
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+}
+
+/* 悬停效果优化 */
+.hover-optimized {
+  transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
+  will-change: transform;
+}
+
+.hover-optimized:hover {
+  transform: translate3d(0, -1px, 0);
+}
+
+/* 卡片动画优化 */
+.card-optimized {
+  transition: transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94), 
+              box-shadow 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+}
+
+.card-optimized:hover {
+  transform: translate3d(0, -2px, 0);
+}
+
+/* 按钮动画优化 */
+.button-optimized {
+  transition: transform 0.1s ease-out, background-color 0.1s ease-out;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+}
+
+.button-optimized:hover {
+  transform: translate3d(0, -1px, 0);
+}
+
+.button-optimized:active {
+  transform: translate3d(0, 0, 0);
+  transition-duration: 0.05s;
+}
+
+/* 优化后的关键帧动画 */
+@keyframes optimizedFadeIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes optimizedSlideIn {
+  from {
+    opacity: 0;
+    transform: translate3d(20px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes optimizedPulse {
+  0%, 100% {
+    transform: scale3d(1, 1, 1);
+  }
+  50% {
+    transform: scale3d(1.02, 1.02, 1);
+  }
+}
+
+/* 减少重绘的工具类 */
+.no-select {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+.gpu-accelerated {
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+}
+
+/* 滚动优化 */
+.smooth-scroll {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* 文本渲染优化 */
+.optimized-text {
+  text-rendering: optimizeSpeed;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 图片渲染优化 */
+.optimized-image {
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+}
+
+/* 动画性能监控 */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* 移动设备优化 */
+@media (max-width: 768px) {
+  .animated-element {
+    animation-duration: 0.2s !important;
+  }
+  
+  .hover-optimized:hover {
+    transform: none;
+  }
+}

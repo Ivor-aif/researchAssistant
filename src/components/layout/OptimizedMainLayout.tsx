@@ -13,7 +13,8 @@ import {
   LoginOutlined,
   SettingOutlined,
   BellOutlined,
-  GithubOutlined
+  GithubOutlined,
+  GitlabOutlined
 } from '@ant-design/icons';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -200,9 +201,17 @@ const OptimizedMainLayout: React.FC = () => {
                 type="text" 
                 icon={<GithubOutlined />} 
                 style={{ width: '100%', textAlign: 'left' }}
-                onClick={() => window.open('https://github.com', '_blank')}
+                onClick={() => window.open('https://github.com/Ivor-aif/researchAssistant', '_blank')}
               >
                 GitHub
+              </Button>
+              <Button 
+                type="text" 
+                icon={<GitlabOutlined />} 
+                style={{ width: '100%', textAlign: 'left' }}
+                onClick={() => window.open('https://gitee.com/ivoraif/researchAssistant', '_blank')}
+              >
+                Gitee
               </Button>
               <Text type="secondary" style={{ fontSize: '12px' }}>版本: v1.0.0</Text>
             </Space>
@@ -221,7 +230,7 @@ const OptimizedMainLayout: React.FC = () => {
             borderRadius: '12px',
             boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
             minHeight: 'calc(100vh - 64px - 48px - 48px)',
-            animation: 'fadeIn 0.3s ease-in-out'
+            animation: 'optimizedFadeIn 0.25s ease-out'
           }}>
             <Suspense fallback={
               <div style={{ 

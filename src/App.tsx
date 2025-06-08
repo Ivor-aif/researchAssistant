@@ -78,7 +78,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
           background: '#fff',
           borderRadius: '12px',
           boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
-          animation: 'fadeIn 0.5s ease-out'
+          animation: 'fadeIn 0.3s ease-out'
         }}>
           <h1 style={{ color: '#f5222d', marginBottom: '24px', fontSize: '28px' }}>应用发生错误</h1>
           <p style={{ fontSize: '16px', color: 'rgba(0, 0, 0, 0.65)', marginBottom: '32px' }}>
@@ -120,15 +120,16 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
               fontSize: '16px',
               cursor: 'pointer',
               boxShadow: '0 2px 8px rgba(24, 144, 255, 0.3)',
-              transition: 'all 0.3s'
+              transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+              willChange: 'transform'
             }}
             onMouseOver={(e) => {
-              e.currentTarget.style.boxShadow = '0 4px 12px rgba(24, 144, 255, 0.5)';
-              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(24, 144, 255, 0.4)';
+              e.currentTarget.style.transform = 'translate3d(0, -1px, 0)';
             }}
             onMouseOut={(e) => {
               e.currentTarget.style.boxShadow = '0 2px 8px rgba(24, 144, 255, 0.3)';
-              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.transform = 'translate3d(0, 0, 0)';
             }}
           >
             刷新页面
