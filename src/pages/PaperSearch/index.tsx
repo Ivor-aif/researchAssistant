@@ -13,6 +13,9 @@ import {
 } from '@ant-design/icons';
 import { getFavoritePapers, addToFavorites, removeFromFavorites } from '../../services/favoriteService';
 import { searchFromMultipleSources, getAvailableSources, getDefaultSources, downloadPaper } from '../../services/paperSearchService';
+import { paperSearchProgressService } from '../../services/paperSearchProgressService';
+import type { SearchProgress } from '../../services/paperSearchProgressService';
+import SearchProgressComponent from '../../components/SearchProgress';
 import type { Paper as ImportedPaper } from '../../types/paper';
 import './style.css';
 
@@ -83,6 +86,11 @@ const PaperSearch: React.FC = () => {
   const [authorFilter, setAuthorFilter] = useState('');
   const [journalFilter, setJournalFilter] = useState('');
   const [keywordFilter, setKeywordFilter] = useState('');
+  
+  // 进度搜索状态
+  const [useProgressSearch, setUseProgressSearch] = useState(true);
+  const [searchProgress, setSearchProgress] = useState<SearchProgress | null>(null);
+  const [isProgressSearching, setIsProgressSearching] = useState(false);
 
   // 初始化数据
   useEffect(() => {
@@ -201,6 +209,76 @@ const PaperSearch: React.FC = () => {
     }
 
     setSearchQuery(value);
+    
+    // 准备搜索源列表
+    const enabledSources = availableSources.filter(source => 
+      selectedSources.includes(source.id)
+    );
+    
+    // 合并内置源和自定义源
+    const enabledCustomSources = customSources.filter(source => 
+      source.enabled !== false
+    );
+    const allSources = [...enabledSources, ...enabledCustomSources];
+    
+    if (allSources.length === 0) {
+      message.warning('请至少选择一个搜索源');
+      return;
+    }
+
+    if (useProgressSearch) {
+      // 使用进度搜索
+      await handleProgressSearch(value, allSources);
+    } else {
+      // 使用传统搜索
+      await handleTraditionalSearch(value, allSources);
+    }
+  };
+
+  // 进度搜索处理
+  const handleProgressSearch = async (value: string, sources: any[]) => {
+    setIsProgressSearching(true);
+    setSearchProgress(null);
+    setPapers([]);
+
+    try {
+      await paperSearchProgressService.searchWithProgress(
+        value,
+        sources,
+        20, // 每个源最多获取20篇论文
+        {
+          onProgress: (progress) => {
+            setSearchProgress(progress);
+          },
+          onComplete: (papers) => {
+            const filteredResults = applyLocalFilters(papers);
+            setPapers(filteredResults);
+            saveSearchHistory(value, filteredResults.length);
+            message.success(`搜索完成，找到 ${filteredResults.length} 篇论文`);
+          },
+          onError: (error) => {
+            console.error('进度搜索失败:', error);
+            message.error(`搜索失败: ${error}`);
+            setSearchProgress({
+              type: 'error',
+              message: error,
+              source: '搜索引擎',
+              progress: 0,
+              status: 'failed'
+            });
+          }
+        }
+      );
+    } catch (error) {
+      console.error('启动进度搜索失败:', error);
+      message.error('启动搜索失败，请稍后重试');
+    } finally {
+      setIsProgressSearching(false);
+    }
+  };
+
+  // 传统搜索处理
+  const handleTraditionalSearch = async (value: string, sources: any[]) => {
     setLoading(true);
 
     try {
@@ -216,25 +294,8 @@ const PaperSearch: React.FC = () => {
         keywords: keywordFilter
       });
 
-      // 准备搜索源列表
-      const enabledSources = availableSources.filter(source => 
-        selectedSources.includes(source.id)
-      );
-      
-      // 合并内置源和自定义源
-      const enabledCustomSources = customSources.filter(source => 
-        source.enabled !== false
-      );
-      const allSources = [...enabledSources, ...enabledCustomSources];
-      
-      if (allSources.length === 0) {
-        message.warning('请至少选择一个搜索源');
-        setLoading(false);
-        return;
-      }
-
       // 调用搜索API
-      const results = await searchFromMultipleSources(value, allSources);
+      const results = await searchFromMultipleSources(value, sources);
       
       // 确保results是一个有效的数组
       if (Array.isArray(results)) {
@@ -257,6 +318,16 @@ const PaperSearch: React.FC = () => {
       setPapers([]); // 确保在错误时papers仍然是数组
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 取消搜索
+  const handleCancelSearch = () => {
+    if (isProgressSearching) {
+      paperSearchProgressService.stopSearch();
+      setIsProgressSearching(false);
+      setSearchProgress(null);
+      message.info('搜索已取消');
     }
   };
 
@@ -406,12 +477,7 @@ const PaperSearch: React.FC = () => {
     handleSearch(query);
   };
 
-  // 清空搜索历史
-  const clearSearchHistory = () => {
-    setSearchHistory([]);
-    localStorage.removeItem('paper_search_history');
-    message.success('搜索历史已清空');
-  };
+  // 清除搜索历史功能已移除
 
   // 处理排序方式变更
   const handleSortChange = (value: string) => {
@@ -421,13 +487,7 @@ const PaperSearch: React.FC = () => {
     }
   };
 
-  // 处理论文类型选择变更
-  const handlePaperTypeChange = (checkedValues: string[]) => {
-    setSelectedPaperTypes(checkedValues);
-    if (searchQuery) {
-      handleSearch(searchQuery);
-    }
-  };
+  // 论文类型变化处理已移至Checkbox.Group的onChange
 
   // 处理搜索源设置变更
   const handleSourceChange = (sourceId: string, enabled: boolean) => {
@@ -516,16 +576,7 @@ const PaperSearch: React.FC = () => {
     message.success(`已删除搜索源: ${sourceToRemove?.name || '未知'}`);
   };
 
-  // 切换自定义搜索源的启用状态
-  const handleToggleCustomSource = (sourceId: string, enabled: boolean) => {
-    const updatedSources = customSources.map(source => 
-      source.id === sourceId ? { ...source, enabled } : source
-    );
-    saveCustomSources(updatedSources);
-    
-    const sourceName = customSources.find(s => s.id === sourceId)?.name || '未知';
-    message.success(`${sourceName} 已${enabled ? '启用' : '禁用'}`);
-  };
+  // 自定义来源切换功能已移除
 
   // 应用搜索设置
   const applySettings = () => {
@@ -595,6 +646,54 @@ const PaperSearch: React.FC = () => {
                   />
                 </Col>
               </Row>
+              
+              {/* 搜索模式切换 */}
+              <div style={{ marginTop: 12, marginBottom: 8 }}>
+                <Space align="center">
+                  <Text type="secondary">搜索模式：</Text>
+                  <Switch
+                    checked={useProgressSearch}
+                    onChange={setUseProgressSearch}
+                    checkedChildren="智能搜索"
+                    unCheckedChildren="标准搜索"
+                  />
+                  <Tooltip title={useProgressSearch ? "智能多源搜索：同时检索多个学术数据库，实时显示搜索进度和结果统计" : "标准搜索模式：快速搜索单一数据源，适合简单查询"}>
+                    <InfoCircleOutlined style={{ color: '#1890ff' }} />
+                  </Tooltip>
+                </Space>
+              </div>
+
+              {/* 搜索进度显示 */}
+              <SearchProgressComponent
+                isVisible={isProgressSearching}
+                progressData={searchProgress ? [searchProgress] : []}
+                onCancel={handleCancelSearch}
+              />
+              
+              {/* 搜索说明和建议 */}
+              {!searchQuery && (
+                <div style={{ marginTop: 16, marginBottom: 8 }}>
+                  <Alert
+                    message="搜索提示"
+                    description={
+                      <div>
+                        <p><strong>智能搜索模式：</strong>同时检索 ArXiv、Semantic Scholar、CrossRef、PubMed 等多个学术数据库，提供全面的搜索结果</p>
+                        <p><strong>标准搜索模式：</strong>快速检索单一数据源，适合简单查询需求</p>
+                        <p><strong>搜索技巧：</strong></p>
+                        <ul style={{ marginLeft: 20, marginBottom: 0 }}>
+                          <li>使用英文关键词获得更好的搜索结果</li>
+                          <li>可以搜索论文标题、作者姓名、DOI 或关键词</li>
+                          <li>使用引号搜索精确短语，如 "machine learning"</li>
+                          <li>使用高级搜索功能按作者、期刊、年份等条件筛选</li>
+                        </ul>
+                      </div>
+                    }
+                    type="info"
+                    showIcon
+                    style={{ marginBottom: 16 }}
+                  />
+                </div>
+              )}
               
               {/* 快速搜索建议 */}
               {searchHistory.length > 0 && !searchQuery && (

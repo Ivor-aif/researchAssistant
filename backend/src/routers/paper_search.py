@@ -23,23 +23,29 @@ SOURCE_CONFIGS = {
         "search_url": "http://export.arxiv.org/api/query?search_query=all:{query}&start=0&max_results={max_results}",
         "enabled": True
     },
+    "semantic_scholar": {
+        "name": "Semantic Scholar",
+        "base_url": "https://api.semanticscholar.org",
+        "search_url": "https://api.semanticscholar.org/graph/v1/paper/search?query={query}&limit={max_results}",
+        "enabled": True
+    },
+    "crossref": {
+        "name": "Crossref",
+        "base_url": "https://api.crossref.org",
+        "search_url": "https://api.crossref.org/works?query={query}&rows={max_results}",
+        "enabled": True
+    },
+    "pubmed": {
+        "name": "PubMed",
+        "base_url": "https://eutils.ncbi.nlm.nih.gov",
+        "search_url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term={query}&retmax={max_results}&retmode=json",
+        "enabled": True
+    },
     "ieee": {
         "name": "IEEE Xplore",
         "base_url": "https://ieeexplore.ieee.org",
         "search_url": "https://ieeexplore.ieee.org/rest/search",
         "enabled": False  # 需要API密钥
-    },
-    "springer": {
-        "name": "Springer",
-        "base_url": "https://api.springernature.com",
-        "search_url": "https://api.springernature.com/meta/v2/json",
-        "enabled": False  # 需要API密钥
-    },
-    "acm": {
-        "name": "ACM Digital Library",
-        "base_url": "https://dl.acm.org",
-        "search_url": "https://dl.acm.org/action/doSearch",
-        "enabled": False  # 需要特殊处理
     }
 }
 
@@ -198,6 +204,89 @@ class PaperSearcher:
             logger.error(f"提取arXiv论文信息失败: {str(e)}")
             return None
     
+    async def search_semantic_scholar(self, query: str, max_results: int = 10) -> List[Dict[str, Any]]:
+        """从Semantic Scholar搜索论文"""
+        try:
+            encoded_query = quote(query)
+            search_url = f"https://api.semanticscholar.org/graph/v1/paper/search?query={encoded_query}&limit={max_results}&fields=paperId,title,authors,abstract,year,citationCount,journal,url,publicationDate"
+            
+            logger.info(f"正在从Semantic Scholar搜索: {query}")
+            
+            async with self.session.get(search_url) as response:
+                if response.status != 200:
+                    logger.error(f"Semantic Scholar API请求失败: {response.status}")
+                    return []
+                
+                data = await response.json()
+                papers = self._parse_semantic_scholar_response(data)
+                logger.info(f"从Semantic Scholar找到 {len(papers)} 篇论文")
+                return papers
+                
+        except Exception as e:
+            logger.error(f"Semantic Scholar搜索失败: {str(e)}")
+            return []
+    
+    async def search_crossref(self, query: str, max_results: int = 10) -> List[Dict[str, Any]]:
+        """从Crossref搜索论文"""
+        try:
+            encoded_query = quote(query)
+            search_url = f"https://api.crossref.org/works?query={encoded_query}&rows={max_results}&select=DOI,title,author,abstract,published-print,is-referenced-by-count,container-title,URL"
+            
+            logger.info(f"正在从Crossref搜索: {query}")
+            
+            async with self.session.get(search_url) as response:
+                if response.status != 200:
+                    logger.error(f"Crossref API请求失败: {response.status}")
+                    return []
+                
+                data = await response.json()
+                papers = self._parse_crossref_response(data)
+                logger.info(f"从Crossref找到 {len(papers)} 篇论文")
+                return papers
+                
+        except Exception as e:
+            logger.error(f"Crossref搜索失败: {str(e)}")
+            return []
+    
+    async def search_pubmed(self, query: str, max_results: int = 10) -> List[Dict[str, Any]]:
+        """从PubMed搜索论文"""
+        try:
+            encoded_query = quote(query)
+            # 首先搜索获取ID列表
+            search_url = f"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term={encoded_query}&retmax={max_results}&retmode=json"
+            
+            logger.info(f"正在从PubMed搜索: {query}")
+            
+            async with self.session.get(search_url) as response:
+                if response.status != 200:
+                    logger.error(f"PubMed搜索API请求失败: {response.status}")
+                    return []
+                
+                search_data = await response.json()
+                id_list = search_data.get('esearchresult', {}).get('idlist', [])
+                
+                if not id_list:
+                    logger.info("PubMed未找到相关论文")
+                    return []
+                
+                # 获取详细信息
+                ids = ','.join(id_list)
+                detail_url = f"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id={ids}&retmode=json"
+                
+                async with self.session.get(detail_url) as detail_response:
+                    if detail_response.status != 200:
+                        logger.error(f"PubMed详情API请求失败: {detail_response.status}")
+                        return []
+                    
+                    detail_data = await detail_response.json()
+                    papers = self._parse_pubmed_response(detail_data)
+                    logger.info(f"从PubMed找到 {len(papers)} 篇论文")
+                    return papers
+                
+        except Exception as e:
+            logger.error(f"PubMed搜索失败: {str(e)}")
+            return []
+    
     async def search_custom_source(self, query: str, source_config: Dict[str, Any]) -> List[Dict[str, Any]]:
         """从自定义源搜索论文"""
         try:
@@ -216,6 +305,131 @@ class PaperSearcher:
         except Exception as e:
             logger.error(f"自定义源搜索失败: {str(e)}")
             return []
+    
+    def _parse_semantic_scholar_response(self, data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """解析Semantic Scholar API响应"""
+        papers = []
+        try:
+            paper_data = data.get('data', [])
+            for item in paper_data:
+                try:
+                    authors = []
+                    if item.get('authors'):
+                        authors = [author.get('name', '') for author in item['authors'] if author.get('name')]
+                    
+                    paper = {
+                        "id": f"ss-{item.get('paperId', '')}",
+                        "title": item.get('title', '未知标题'),
+                        "authors": authors,
+                        "abstract": item.get('abstract', '暂无摘要'),
+                        "keywords": [],
+                        "year": item.get('year'),
+                        "journal": item.get('journal', {}).get('name', 'Semantic Scholar') if item.get('journal') else 'Semantic Scholar',
+                        "citations": item.get('citationCount', 0),
+                        "source": "semantic_scholar",
+                        "url": item.get('url', ''),
+                        "published_date": item.get('publicationDate'),
+                        "paper_type": "研究论文"
+                    }
+                    papers.append(paper)
+                except Exception as e:
+                    logger.warning(f"解析Semantic Scholar论文条目失败: {str(e)}")
+                    continue
+        except Exception as e:
+            logger.error(f"解析Semantic Scholar响应失败: {str(e)}")
+        return papers
+    
+    def _parse_crossref_response(self, data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """解析Crossref API响应"""
+        papers = []
+        try:
+            items = data.get('message', {}).get('items', [])
+            for item in items:
+                try:
+                    authors = []
+                    if item.get('author'):
+                        for author in item['author']:
+                            given = author.get('given', '')
+                            family = author.get('family', '')
+                            name = f"{given} {family}".strip()
+                            if name:
+                                authors.append(name)
+                    
+                    # 获取发布年份
+                    year = None
+                    if item.get('published-print', {}).get('date-parts'):
+                        year = item['published-print']['date-parts'][0][0]
+                    elif item.get('published-online', {}).get('date-parts'):
+                        year = item['published-online']['date-parts'][0][0]
+                    
+                    paper = {
+                        "id": f"cr-{item.get('DOI', '').replace('/', '-')}",
+                        "title": item.get('title', ['未知标题'])[0] if item.get('title') else '未知标题',
+                        "authors": authors,
+                        "abstract": item.get('abstract', '暂无摘要'),
+                        "keywords": [],
+                        "year": year,
+                        "journal": item.get('container-title', ['Crossref'])[0] if item.get('container-title') else 'Crossref',
+                        "citations": item.get('is-referenced-by-count', 0),
+                        "source": "crossref",
+                        "url": item.get('URL', ''),
+                        "published_date": None,
+                        "paper_type": "研究论文",
+                        "doi": item.get('DOI')
+                    }
+                    papers.append(paper)
+                except Exception as e:
+                    logger.warning(f"解析Crossref论文条目失败: {str(e)}")
+                    continue
+        except Exception as e:
+            logger.error(f"解析Crossref响应失败: {str(e)}")
+        return papers
+    
+    def _parse_pubmed_response(self, data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """解析PubMed API响应"""
+        papers = []
+        try:
+            result = data.get('result', {})
+            for pmid, item in result.items():
+                if pmid == 'uids':  # 跳过uids字段
+                    continue
+                try:
+                    authors = []
+                    if item.get('authors'):
+                        for author in item['authors']:
+                            if author.get('name'):
+                                authors.append(author['name'])
+                    
+                    # 解析发布日期
+                    pub_date = item.get('pubdate', '')
+                    year = None
+                    if pub_date:
+                        try:
+                            year = int(pub_date.split()[0])
+                        except:
+                            pass
+                    
+                    paper = {
+                        "id": f"pm-{pmid}",
+                        "title": item.get('title', '未知标题'),
+                        "authors": authors,
+                        "abstract": '暂无摘要',  # PubMed summary API不包含摘要
+                        "keywords": [],
+                        "year": year,
+                        "journal": item.get('source', 'PubMed'),
+                        "citations": 0,  # PubMed API不直接提供引用数
+                        "source": "pubmed",
+                        "url": f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/",
+                        "published_date": pub_date,
+                        "paper_type": "研究论文"
+                    }
+                    papers.append(paper)
+                except Exception as e:
+                    logger.warning(f"解析PubMed论文条目失败: {str(e)}")
+                    continue
+        except Exception as e:
+            logger.error(f"解析PubMed响应失败: {str(e)}")
+        return papers
     
     def _generate_mock_papers_for_custom_source(self, query: str, source_config: Dict[str, Any]) -> List[Dict[str, Any]]:
         """为自定义源生成模拟论文数据"""
@@ -309,6 +523,15 @@ async def search_from_multiple_sources(data: Dict[str, Any] = Body(...)) -> Dict
                 if source_id == "arxiv":
                     # 使用真实的arXiv API
                     task = searcher.search_arxiv(query, max_results)
+                elif source_id == "semantic_scholar":
+                    # 使用Semantic Scholar API
+                    task = searcher.search_semantic_scholar(query, max_results)
+                elif source_id == "crossref":
+                    # 使用Crossref API
+                    task = searcher.search_crossref(query, max_results)
+                elif source_id == "pubmed":
+                    # 使用PubMed API
+                    task = searcher.search_pubmed(query, max_results)
                 else:
                     # 对于其他源，使用自定义搜索
                     task = searcher.search_custom_source(query, source)

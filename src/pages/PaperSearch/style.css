@@ -117,9 +117,11 @@
 
 .search-input .ant-input-affix-wrapper:focus-within {
   border-color: #667eea !important;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2) !important;
+  box-shadow: inset 0 0 0 1px rgba(102, 126, 234, 0.3) !important;
   outline: none !important;
   background: rgba(255, 255, 255, 1);
+  height: 52px !important;
+  transform: none !important;
 }
 
 .search-input .ant-input-group-addon {

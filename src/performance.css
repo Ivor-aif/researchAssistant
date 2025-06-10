@@ -1,20 +1,7 @@
 /* 性能优化 CSS - 减少动画卡顿 */
 
-/* 全局性能优化 */
-* {
-  /* 启用硬件加速 */
-  -webkit-transform: translateZ(0);
-  -moz-transform: translateZ(0);
-  -ms-transform: translateZ(0);
-  -o-transform: translateZ(0);
-  transform: translateZ(0);
-  
-  /* 优化渲染性能 */
-  -webkit-backface-visibility: hidden;
-  backface-visibility: hidden;
-  -webkit-perspective: 1000;
-  perspective: 1000;
-}
+/* 全局性能优化 - 移除可能影响布局的全局样式 */
+/* 只对需要动画的元素应用硬件加速 */
 
 /* 动画元素优化 */
 .animated-element {
