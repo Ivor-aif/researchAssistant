@@ -86,6 +86,7 @@ const PaperSearch: React.FC = () => {
   const [authorFilter, setAuthorFilter] = useState('');
   const [journalFilter, setJournalFilter] = useState('');
   const [keywordFilter, setKeywordFilter] = useState('');
+  const [maxResultsPerSource, setMaxResultsPerSource] = useState(30); // 每个源的最大结果数
   
   // 进度搜索状态
   const [useProgressSearch, setUseProgressSearch] = useState(true);
@@ -245,7 +246,7 @@ const PaperSearch: React.FC = () => {
       await paperSearchProgressService.searchWithProgress(
         value,
         sources,
-        20, // 每个源最多获取20篇论文
+        maxResultsPerSource, // 使用用户配置的最大结果数
         {
           onProgress: (progress) => {
             setSearchProgress(progress);
@@ -663,136 +664,56 @@ const PaperSearch: React.FC = () => {
                 </Space>
               </div>
 
-              {/* 搜索进度显示 */}
-              <SearchProgressComponent
-                isVisible={isProgressSearching}
-                progressData={searchProgress ? [searchProgress] : []}
-                onCancel={handleCancelSearch}
-              />
+              {/* 智能搜索进度显示 */}
+              {useProgressSearch && (
+                <SearchProgressComponent
+                  isVisible={isProgressSearching}
+                  progressData={searchProgress ? [searchProgress] : []}
+                  onCancel={handleCancelSearch}
+                />
+              )}
               
-              {/* 搜索说明和建议 */}
+              {/* 简化的搜索提示 */}
               {!searchQuery && (
-                <div style={{ marginTop: 16, marginBottom: 8 }}>
-                  <Alert
-                    message="搜索提示"
-                    description={
-                      <div>
-                        <p><strong>智能搜索模式：</strong>同时检索 ArXiv、Semantic Scholar、CrossRef、PubMed 等多个学术数据库，提供全面的搜索结果</p>
-                        <p><strong>标准搜索模式：</strong>快速检索单一数据源，适合简单查询需求</p>
-                        <p><strong>搜索技巧：</strong></p>
-                        <ul style={{ marginLeft: 20, marginBottom: 0 }}>
-                          <li>使用英文关键词获得更好的搜索结果</li>
-                          <li>可以搜索论文标题、作者姓名、DOI 或关键词</li>
-                          <li>使用引号搜索精确短语，如 "machine learning"</li>
-                          <li>使用高级搜索功能按作者、期刊、年份等条件筛选</li>
-                        </ul>
-                      </div>
-                    }
-                    type="info"
-                    showIcon
-                    style={{ marginBottom: 16 }}
-                  />
+                <div style={{ marginTop: 12, marginBottom: 12 }}>
+                  <Text type="secondary" style={{ fontSize: '13px' }}>
+                    💡 使用英文关键词获得更好结果 • 支持标题、作者、DOI搜索
+                  </Text>
                 </div>
               )}
               
-              {/* 快速搜索建议 */}
-              {searchHistory.length > 0 && !searchQuery && (
-                <div className="search-suggestions">
-                  <Text type="secondary" style={{ fontSize: '12px' }}>最近搜索：</Text>
-                  <Space wrap style={{ marginTop: 8 }}>
-                    {searchHistory.slice(0, 5).map((history, index) => (
-                      <Tag 
-                        key={index}
-                        onClick={() => handleQuickSearch(history.query)}
-                        style={{ cursor: 'pointer' }}
-                        color="blue"
-                      >
-                        {history.query} ({history.resultsCount})
-                      </Tag>
-                    ))}
-                  </Space>
-                </div>
-              )}
-              
-              {/* 高级搜索选项 */}
-              {advancedSearch && (
-                <Card size="small" className="advanced-search-card" style={{ marginTop: 16 }}>
-                  <Row gutter={[16, 16]}>
-                    <Col span={8}>
-                      <Input
-                        placeholder="作者"
-                        prefix={<UserOutlined />}
-                        value={authorFilter}
-                        onChange={(e) => setAuthorFilter(e.target.value)}
-                      />
-                    </Col>
-                    <Col span={8}>
-                      <Input
-                        placeholder="期刊/会议"
-                        prefix={<BookOutlined />}
-                        value={journalFilter}
-                        onChange={(e) => setJournalFilter(e.target.value)}
-                      />
-                    </Col>
-                    <Col span={8}>
-                      <Input
-                        placeholder="关键词"
-                        prefix={<SearchOutlined />}
-                        value={keywordFilter}
-                        onChange={(e) => setKeywordFilter(e.target.value)}
-                      />
-                    </Col>
-                  </Row>
-                </Card>
-              )}
-              
-              <div style={{ marginTop: 16, textAlign: 'center' }}>
-                <Button 
-                  type="link" 
-                  onClick={() => setAdvancedSearch(!advancedSearch)}
-                  icon={advancedSearch ? <EyeOutlined /> : <SearchOutlined />}
-                >
-                  {advancedSearch ? '隐藏' : '显示'}高级搜索
-                </Button>
-              </div>
+
             </div>
 
-            {/* 快速筛选条件 */}
+            {/* 简化的筛选条件 */}
             {(selectedPaperTypes.length > 0 || minCitations > 0 || yearRange[0] > 2020 || yearRange[1] < new Date().getFullYear()) && (
-              <Alert
-                message="当前筛选条件"
-                description={
-                  <Space wrap>
-                    {selectedPaperTypes.length > 0 && (
-                      <Tag color="blue">类型: {selectedPaperTypes.join(', ')}</Tag>
-                    )}
-                    {minCitations > 0 && (
-                      <Tag color="green">引用数 ≥ {minCitations}</Tag>
-                    )}
-                    {(yearRange[0] > 2020 || yearRange[1] < new Date().getFullYear()) && (
-                      <Tag color="orange">年份: {yearRange[0]}-{yearRange[1]}</Tag>
-                    )}
-                    <Button 
-                      size="small" 
-                      type="link" 
-                      onClick={() => {
-                        setSelectedPaperTypes([]);
-                        setMinCitations(0);
-                        setYearRange([2020, new Date().getFullYear()]);
-                        setAuthorFilter('');
-                        setJournalFilter('');
-                        setKeywordFilter('');
-                      }}
-                    >
-                      清除筛选
-                    </Button>
-                  </Space>
-                }
-                type="info"
-                showIcon
-                closable
-                style={{ marginTop: 16 }}
-              />
+              <div style={{ marginBottom: 12, padding: '8px 12px', background: '#f5f5f5', borderRadius: '6px' }}>
+                <Space wrap size="small">
+                  {selectedPaperTypes.length > 0 && (
+                    <Tag color="blue" size="small">类型: {selectedPaperTypes.join(', ')}</Tag>
+                  )}
+                  {minCitations > 0 && (
+                    <Tag color="green" size="small">引用数 ≥ {minCitations}</Tag>
+                  )}
+                  {(yearRange[0] > 2020 || yearRange[1] < new Date().getFullYear()) && (
+                    <Tag color="orange" size="small">年份: {yearRange[0]}-{yearRange[1]}</Tag>
+                  )}
+                  <Button 
+                    size="small" 
+                    type="text"
+                    onClick={() => {
+                      setSelectedPaperTypes([]);
+                      setMinCitations(0);
+                      setYearRange([2020, new Date().getFullYear()]);
+                      setAuthorFilter('');
+                      setJournalFilter('');
+                      setKeywordFilter('');
+                    }}
+                  >
+                    清除
+                  </Button>
+                </Space>
+              </div>
             )}
           </TabPane>
           
@@ -1142,6 +1063,25 @@ const PaperSearch: React.FC = () => {
         ]}
         className="settings-modal"
       >
+        <Title level={5} className="settings-title">搜索配置</Title>
+        <div className="settings-item">
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <div style={{ marginBottom: 16 }}>
+              <Text strong>每个源的最大结果数：</Text>
+              <Tooltip title="增加此数值可获得更全面的搜索结果，但会增加搜索时间">
+                <InputNumber
+                  min={10}
+                  max={100}
+                  value={maxResultsPerSource}
+                  onChange={(value) => setMaxResultsPerSource(value || 30)}
+                  style={{ marginLeft: 8, width: 80 }}
+                />
+              </Tooltip>
+              <Text type="secondary" style={{ marginLeft: 8, fontSize: '12px' }}>推荐值：30-50</Text>
+            </div>
+          </Space>
+        </div>
+        
         <Title level={5} className="settings-title">选择搜索源</Title>
         <div className="settings-item">
           <Space direction="vertical" style={{ width: '100%' }}>

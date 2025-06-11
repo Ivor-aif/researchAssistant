@@ -70,7 +70,7 @@ class PaperSearcher:
         if self.session:
             await self.session.close()
     
-    async def search_arxiv(self, query: str, max_results: int = 10) -> List[Dict[str, Any]]:
+    async def search_arxiv(self, query: str, max_results: int = 30) -> List[Dict[str, Any]]:
         """从arXiv搜索论文"""
         try:
             # 构建搜索URL
@@ -204,7 +204,7 @@ class PaperSearcher:
             logger.error(f"提取arXiv论文信息失败: {str(e)}")
             return None
     
-    async def search_semantic_scholar(self, query: str, max_results: int = 10) -> List[Dict[str, Any]]:
+    async def search_semantic_scholar(self, query: str, max_results: int = 30) -> List[Dict[str, Any]]:
         """从Semantic Scholar搜索论文"""
         try:
             encoded_query = quote(query)
@@ -226,7 +226,7 @@ class PaperSearcher:
             logger.error(f"Semantic Scholar搜索失败: {str(e)}")
             return []
     
-    async def search_crossref(self, query: str, max_results: int = 10) -> List[Dict[str, Any]]:
+    async def search_crossref(self, query: str, max_results: int = 30) -> List[Dict[str, Any]]:
         """从Crossref搜索论文"""
         try:
             encoded_query = quote(query)
@@ -248,7 +248,7 @@ class PaperSearcher:
             logger.error(f"Crossref搜索失败: {str(e)}")
             return []
     
-    async def search_pubmed(self, query: str, max_results: int = 10) -> List[Dict[str, Any]]:
+    async def search_pubmed(self, query: str, max_results: int = 30) -> List[Dict[str, Any]]:
         """从PubMed搜索论文"""
         try:
             encoded_query = quote(query)
@@ -473,7 +473,7 @@ async def search_from_multiple_sources(data: Dict[str, Any] = Body(...)) -> Dict
     """
     query = data.get("query", "")
     sources = data.get("sources", [])
-    max_results = data.get("max_results", 10)
+    max_results = data.get("max_results", 30)
     
     try:
         logger.info(f"开始搜索论文，关键词: {query}")
@@ -550,11 +550,25 @@ async def search_from_multiple_sources(data: Dict[str, Any] = Body(...)) -> Dict
                 if isinstance(result, list):
                     all_papers.extend(result)
         
-        # 按相关度和年份排序
-        all_papers.sort(key=lambda x: (x.get('year', 0), x.get('citations', 0)), reverse=True)
+        # 去重处理 - 基于标题相似度
+        unique_papers = []
+        seen_titles = set()
         
-        logger.info(f"搜索完成，总共找到 {len(all_papers)} 篇论文")
-        return {"papers": all_papers}
+        for paper in all_papers:
+            title = paper.get('title', '').lower().strip()
+            # 简单的标题去重，移除标点符号和多余空格
+            normalized_title = ''.join(c for c in title if c.isalnum() or c.isspace()).strip()
+            normalized_title = ' '.join(normalized_title.split())
+            
+            if normalized_title and normalized_title not in seen_titles:
+                seen_titles.add(normalized_title)
+                unique_papers.append(paper)
+        
+        # 按相关度和年份排序
+        unique_papers.sort(key=lambda x: (x.get('year', 0), x.get('citations', 0)), reverse=True)
+        
+        logger.info(f"搜索完成，总共找到 {len(all_papers)} 篇论文，去重后 {len(unique_papers)} 篇")
+        return {"papers": unique_papers}
         
     except HTTPException:
         raise

@@ -34,7 +34,7 @@ class ProgressPaperSearcher(PaperSearcher):
             }
             await self.progress_callback(progress_data)
     
-    async def search_with_progress(self, query: str, sources: List[Dict[str, Any]], max_results: int = 10):
+    async def search_with_progress(self, query: str, sources: List[Dict[str, Any]], max_results: int = 30):
         """带进度反馈的搜索"""
         total_sources = len(sources)
         all_papers = []
@@ -81,17 +81,31 @@ class ProgressPaperSearcher(PaperSearcher):
                     len(all_papers)
                 )
         
-        # 排序结果
-        all_papers.sort(key=lambda x: (x.get('year', 0), x.get('citations', 0)), reverse=True)
+        # 去重处理 - 基于标题相似度
+        unique_papers = []
+        seen_titles = set()
         
-        await self.send_progress("搜索完成！", total_sources, total_sources, len(all_papers))
+        for paper in all_papers:
+            title = paper.get('title', '').lower().strip()
+            # 简单的标题去重，移除标点符号和多余空格
+            normalized_title = ''.join(c for c in title if c.isalnum() or c.isspace()).strip()
+            normalized_title = ' '.join(normalized_title.split())
+            
+            if normalized_title and normalized_title not in seen_titles:
+                seen_titles.add(normalized_title)
+                unique_papers.append(paper)
+        
+        # 排序结果
+        unique_papers.sort(key=lambda x: (x.get('year', 0), x.get('citations', 0)), reverse=True)
+        
+        await self.send_progress(f"搜索完成！去重后共 {len(unique_papers)} 篇论文", total_sources, total_sources, len(unique_papers))
         
         # 发送最终结果
         if self.progress_callback:
             final_data = {
                 "type": "complete",
-                "papers": all_papers,
-                "total_found": len(all_papers)
+                "papers": unique_papers,
+                "total_found": len(unique_papers)
             }
             await self.progress_callback(final_data)
         
@@ -112,7 +126,7 @@ async def search_with_progress_stream(data: Dict[str, Any] = Body(...)):
     """
     query = data.get("query", "")
     sources = data.get("sources", [])
-    max_results = data.get("max_results", 10)
+    max_results = data.get("max_results", 30)
     
     # 验证输入参数
     if not query or not isinstance(query, str) or not query.strip():
