@@ -2,14 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { 
   Input, Button, Card, List, Tag, Space, Typography, Skeleton, Select, 
   Checkbox, Empty, Modal, Switch, message, Form, Tooltip, Badge, 
-  Row, Col, Alert, Drawer, Tabs, Slider, InputNumber
+  Row, Col, Drawer, Tabs, Slider, InputNumber
 } from 'antd';
 import { 
   SearchOutlined, HeartOutlined, HeartFilled, DownloadOutlined, 
   InfoCircleOutlined, FileSearchOutlined, SettingOutlined, 
   PlusOutlined, DeleteOutlined, LinkOutlined, CalendarOutlined,
-  UserOutlined, BookOutlined, FilterOutlined, SortAscendingOutlined,
-  EyeOutlined
+  UserOutlined, BookOutlined, FilterOutlined, SortAscendingOutlined
 } from '@ant-design/icons';
 import { getFavoritePapers, addToFavorites, removeFromFavorites } from '../../services/favoriteService';
 import { searchFromMultipleSources, getAvailableSources, getDefaultSources, downloadPaper } from '../../services/paperSearchService';
@@ -82,7 +81,6 @@ const PaperSearch: React.FC = () => {
   const [newSourceDescription, setNewSourceDescription] = useState('');
   
   // 高级搜索状态
-  const [advancedSearch, setAdvancedSearch] = useState(false);
   const [authorFilter, setAuthorFilter] = useState('');
   const [journalFilter, setJournalFilter] = useState('');
   const [keywordFilter, setKeywordFilter] = useState('');
@@ -472,11 +470,7 @@ const PaperSearch: React.FC = () => {
     message.info('已在新窗口中打开论文原始页面');
   };
 
-  // 处理快速搜索（从搜索历史）
-  const handleQuickSearch = (query: string) => {
-    setSearchQuery(query);
-    handleSearch(query);
-  };
+  // 处理快速搜索功能已移除
 
   // 清除搜索历史功能已移除
 
@@ -690,13 +684,13 @@ const PaperSearch: React.FC = () => {
               <div style={{ marginBottom: 12, padding: '8px 12px', background: '#f5f5f5', borderRadius: '6px' }}>
                 <Space wrap size="small">
                   {selectedPaperTypes.length > 0 && (
-                    <Tag color="blue" size="small">类型: {selectedPaperTypes.join(', ')}</Tag>
+                    <Tag color="blue">类型: {selectedPaperTypes.join(', ')}</Tag>
                   )}
                   {minCitations > 0 && (
-                    <Tag color="green" size="small">引用数 ≥ {minCitations}</Tag>
+                    <Tag color="green">引用数 ≥ {minCitations}</Tag>
                   )}
                   {(yearRange[0] > 2020 || yearRange[1] < new Date().getFullYear()) && (
-                    <Tag color="orange" size="small">年份: {yearRange[0]}-{yearRange[1]}</Tag>
+                    <Tag color="orange">年份: {yearRange[0]}-{yearRange[1]}</Tag>
                   )}
                   <Button 
                     size="small" 
