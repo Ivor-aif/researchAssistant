@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { 
   Input, Button, Card, List, Tag, Space, Typography, Skeleton, Select, 
   Checkbox, Empty, Modal, Switch, message, Form, Tooltip, Badge, 
-  Row, Col, Drawer, Tabs, Slider, InputNumber
+  Row, Col, Drawer, Tabs, Slider, InputNumber, Divider
 } from 'antd';
 import { 
   SearchOutlined, HeartOutlined, HeartFilled, DownloadOutlined, 
   InfoCircleOutlined, FileSearchOutlined, SettingOutlined, 
   PlusOutlined, DeleteOutlined, LinkOutlined, CalendarOutlined,
-  UserOutlined, BookOutlined, FilterOutlined, SortAscendingOutlined
+  UserOutlined, BookOutlined, FilterOutlined, SortAscendingOutlined,
+  StarOutlined, EyeOutlined, CloseOutlined
 } from '@ant-design/icons';
 import { getFavoritePapers, addToFavorites, removeFromFavorites } from '../../services/favoriteService';
 import { searchFromMultipleSources, getAvailableSources, getDefaultSources, downloadPaper } from '../../services/paperSearchService';
@@ -84,7 +85,7 @@ const PaperSearch: React.FC = () => {
   const [authorFilter, setAuthorFilter] = useState('');
   const [journalFilter, setJournalFilter] = useState('');
   const [keywordFilter, setKeywordFilter] = useState('');
-  const [maxResultsPerSource, setMaxResultsPerSource] = useState(30); // 每个源的最大结果数
+  const [maxResultsPerSource, setMaxResultsPerSource] = useState(30);
   
   // 进度搜索状态
   const [useProgressSearch, setUseProgressSearch] = useState(true);
@@ -95,23 +96,19 @@ const PaperSearch: React.FC = () => {
   useEffect(() => {
     const initializeData = async () => {
       try {
-        // 获取可用的搜索源
         const sources = await getAvailableSources();
         setAvailableSources(sources);
         
-        // 设置默认选中的搜索源
         if (sources.length > 0) {
-          setSelectedSources([sources[0].id]); // 默认选中第一个源
+          setSelectedSources([sources[0].id]);
         }
       } catch (error) {
         console.error('初始化搜索源失败:', error);
-        // 使用默认搜索源
         const defaultSources = getDefaultSources();
         setAvailableSources(defaultSources);
         setSelectedSources(['arxiv']);
       }
       
-      // 设置论文类型
       const paperTypeOptions = [
         'Research Paper',
         'Review Article', 
@@ -126,10 +123,7 @@ const PaperSearch: React.FC = () => {
       ];
       setPaperTypes(paperTypeOptions);
       
-      // 加载搜索历史
       loadSearchHistory();
-      
-      // 加载自定义搜索源
       loadCustomSources();
     };
     
@@ -138,11 +132,9 @@ const PaperSearch: React.FC = () => {
 
   // 获取收藏的论文ID列表
   useEffect(() => {
-    // 使用favoriteService获取收藏的论文
     const favoritePapers = getFavoritePapers();
-    // 确保每个paper对象都有id属性
     setFavorites(favoritePapers
-      .filter(paper => paper && paper.id) // 过滤掉没有id的paper
+      .filter(paper => paper && paper.id)
       .map(paper => paper.id));
   }, []);
 
@@ -152,7 +144,6 @@ const PaperSearch: React.FC = () => {
       const history = localStorage.getItem('paper_search_history');
       if (history) {
         const parsedHistory: SearchHistory[] = JSON.parse(history);
-        // 只保留最近20条记录
         setSearchHistory(parsedHistory.slice(0, 20));
       }
     } catch (error) {
@@ -209,12 +200,10 @@ const PaperSearch: React.FC = () => {
 
     setSearchQuery(value);
     
-    // 准备搜索源列表
     const enabledSources = availableSources.filter(source => 
       selectedSources.includes(source.id)
     );
     
-    // 合并内置源和自定义源
     const enabledCustomSources = customSources.filter(source => 
       source.enabled !== false
     );
@@ -226,10 +215,8 @@ const PaperSearch: React.FC = () => {
     }
 
     if (useProgressSearch) {
-      // 使用进度搜索
       await handleProgressSearch(value, allSources);
     } else {
-      // 使用传统搜索
       await handleTraditionalSearch(value, allSources);
     }
   };
@@ -244,7 +231,7 @@ const PaperSearch: React.FC = () => {
       await paperSearchProgressService.searchWithProgress(
         value,
         sources,
-        maxResultsPerSource, // 使用用户配置的最大结果数
+        maxResultsPerSource,
         {
           onProgress: (progress) => {
             setSearchProgress(progress);
@@ -281,30 +268,12 @@ const PaperSearch: React.FC = () => {
     setLoading(true);
 
     try {
-      console.log('搜索参数:', {
-        query: value,
-        sort_by: sortBy,
-        paper_types: selectedPaperTypes.length > 0 ? selectedPaperTypes : undefined,
-        sources: selectedSources,
-        year_range: yearRange,
-        min_citations: minCitations,
-        author: authorFilter,
-        journal: journalFilter,
-        keywords: keywordFilter
-      });
-
-      // 调用搜索API
       const results = await searchFromMultipleSources(value, sources);
       
-      // 确保results是一个有效的数组
       if (Array.isArray(results)) {
-        // 应用本地筛选
         const filteredResults = applyLocalFilters(results);
         setPapers(filteredResults);
-        
-        // 保存搜索历史
         saveSearchHistory(value, filteredResults.length);
-        
         message.success(`搜索完成，找到 ${filteredResults.length} 篇论文`);
       } else {
         console.error('搜索结果不是有效的数组:', results);
@@ -314,7 +283,7 @@ const PaperSearch: React.FC = () => {
     } catch (error) {
       console.error('搜索失败:', error);
       message.error('搜索失败，请稍后重试');
-      setPapers([]); // 确保在错误时papers仍然是数组
+      setPapers([]);
     } finally {
       setLoading(false);
     }
@@ -333,17 +302,14 @@ const PaperSearch: React.FC = () => {
   // 应用本地筛选
   const applyLocalFilters = (papers: Paper[]): Paper[] => {
     return papers.filter(paper => {
-      // 年份筛选
       if (paper.year && (paper.year < yearRange[0] || paper.year > yearRange[1])) {
         return false;
       }
       
-      // 引用次数筛选
       if (paper.citations !== undefined && paper.citations < minCitations) {
         return false;
       }
       
-      // 作者筛选
       if (authorFilter && paper.authors) {
         const authorMatch = paper.authors.some(author => 
           author.toLowerCase().includes(authorFilter.toLowerCase())
@@ -351,14 +317,12 @@ const PaperSearch: React.FC = () => {
         if (!authorMatch) return false;
       }
       
-      // 期刊筛选
       if (journalFilter && paper.journal) {
         if (!paper.journal.toLowerCase().includes(journalFilter.toLowerCase())) {
           return false;
         }
       }
       
-      // 关键词筛选
       if (keywordFilter && paper.keywords) {
         const keywordMatch = paper.keywords.some(keyword => 
           keyword.toLowerCase().includes(keywordFilter.toLowerCase())
@@ -366,7 +330,6 @@ const PaperSearch: React.FC = () => {
         if (!keywordMatch) return false;
       }
       
-      // 论文类型筛选
       if (selectedPaperTypes.length > 0 && paper.paper_type) {
         if (!selectedPaperTypes.includes(paper.paper_type)) {
           return false;
@@ -380,13 +343,11 @@ const PaperSearch: React.FC = () => {
   // 处理收藏/取消收藏
   const handleFavorite = async (paperId: string, isFavorite: boolean) => {
     try {
-      // 确保paperId存在
       if (!paperId) {
         console.error('论文ID为空');
         return;
       }
       
-      // 找到对应的论文
       const paper = papers.find(p => p && p.id === paperId);
       if (!paper) {
         message.error('未找到论文信息');
@@ -394,13 +355,11 @@ const PaperSearch: React.FC = () => {
       }
 
       if (isFavorite) {
-        // 取消收藏
         const success = removeFromFavorites(paperId);
         if (success) {
           setFavorites(favorites.filter(id => id !== paperId));
         }
       } else {
-        // 添加收藏
         const success = addToFavorites(paper);
         if (success) {
           setFavorites([...favorites, paperId]);
@@ -415,17 +374,13 @@ const PaperSearch: React.FC = () => {
   // 处理下载
   const handleDownload = async (paper: Paper) => {
     try {
-      // 确保paper对象存在
       if (!paper) {
         console.error('论文对象为空');
         message.error('无法下载：论文信息不完整');
         return;
       }
       
-      // 模拟下载功能
       message.info('正在准备下载...');
-      
-      // 模拟API调用延迟
       await new Promise(resolve => setTimeout(resolve, 1500));
       
       console.log('📥 下载论文:', paper.title);
@@ -433,7 +388,6 @@ const PaperSearch: React.FC = () => {
       const success = await downloadPaper(paper.id || '', paper.url || '');
       
       if (!success) {
-        // 如果下载失败，尝试直接打开链接
         if (paper.url) {
           window.open(paper.url, '_blank');
           message.info('已在新窗口中打开论文链接');
@@ -447,7 +401,6 @@ const PaperSearch: React.FC = () => {
 
   // 处理查看详情
   const handleViewDetails = (paper: Paper) => {
-    // 确保paper对象存在
     if (!paper) {
       console.error('论文对象为空');
       message.error('无法查看详情：论文信息不完整');
@@ -470,10 +423,6 @@ const PaperSearch: React.FC = () => {
     message.info('已在新窗口中打开论文原始页面');
   };
 
-  // 处理快速搜索功能已移除
-
-  // 清除搜索历史功能已移除
-
   // 处理排序方式变更
   const handleSortChange = (value: string) => {
     setSortBy(value);
@@ -481,8 +430,6 @@ const PaperSearch: React.FC = () => {
       handleSearch(searchQuery);
     }
   };
-
-  // 论文类型变化处理已移至Checkbox.Group的onChange
 
   // 处理搜索源设置变更
   const handleSourceChange = (sourceId: string, enabled: boolean) => {
@@ -495,7 +442,6 @@ const PaperSearch: React.FC = () => {
 
   // 添加自定义搜索源
   const handleAddCustomSource = () => {
-    // 验证输入
     if (!newSourceName.trim()) {
       message.warning('请输入搜索源名称');
       return;
@@ -506,7 +452,6 @@ const PaperSearch: React.FC = () => {
       return;
     }
     
-    // 验证URL格式
     try {
       const url = new URL(newSourceUrl);
       if (!['http:', 'https:'].includes(url.protocol)) {
@@ -517,7 +462,6 @@ const PaperSearch: React.FC = () => {
       return;
     }
     
-    // 检查是否已存在同名源或同URL源
     const nameExists = customSources.some(
       source => source.name.toLowerCase() === newSourceName.toLowerCase()
     );
@@ -535,7 +479,6 @@ const PaperSearch: React.FC = () => {
       return;
     }
     
-    // 创建新的自定义源
     const newSource: CustomSource = {
       id: `custom-${Date.now()}`,
       name: newSourceName.trim(),
@@ -544,11 +487,9 @@ const PaperSearch: React.FC = () => {
       enabled: true
     };
     
-    // 添加到自定义源列表并保存
     const updatedSources = [...customSources, newSource];
     saveCustomSources(updatedSources);
     
-    // 清空输入框
     setNewSourceName('');
     setNewSourceUrl('');
     setNewSourceDescription('');
@@ -563,15 +504,12 @@ const PaperSearch: React.FC = () => {
     
     saveCustomSources(updatedSources);
     
-    // 如果删除的源正在被选中，从选中列表中移除
     if (selectedSources.includes(sourceId)) {
       setSelectedSources(selectedSources.filter(id => id !== sourceId));
     }
     
     message.success(`已删除搜索源: ${sourceToRemove?.name || '未知'}`);
   };
-
-  // 自定义来源切换功能已移除
 
   // 应用搜索设置
   const applySettings = () => {
@@ -582,361 +520,240 @@ const PaperSearch: React.FC = () => {
   };
 
   return (
-    <div className="paper-search-container">
-      <Card 
-        title={
-          <div className="paper-search-header">
-            <FileSearchOutlined className="paper-search-icon" />
-            <span>智能论文检索系统</span>
-            <Badge count={papers.length} showZero style={{ marginLeft: 16 }} />
+    <div className="modern-search-container">
+      {/* 主搜索区域 */}
+      <div className="search-hero">
+        <div className="search-hero-content">
+          <div className="search-title-section">
+            <FileSearchOutlined className="search-hero-icon" />
+            <Title level={1} className="search-hero-title">
+              智能论文检索
+            </Title>
+            <Text className="search-hero-subtitle">
+              发现前沿研究，探索学术世界
+            </Text>
           </div>
-        } 
-        bordered={false}
-        className="paper-search-card"
-        extra={
-          <Space>
-            <Tooltip title="高级筛选">
-              <Button 
-                icon={<FilterOutlined />} 
-                onClick={() => setFiltersVisible(true)}
-                type={filtersVisible ? 'primary' : 'default'}
-              >
-                筛选
-              </Button>
-            </Tooltip>
-            <Tooltip title="搜索设置">
-              <Button 
-                icon={<SettingOutlined />} 
-                onClick={() => setSettingsVisible(true)}
-              >
-                设置
-              </Button>
-            </Tooltip>
-          </Space>
-        }
-      >
-        <Tabs activeKey={activeTab} onChange={setActiveTab} className="search-tabs">
-          <TabPane tab={<span><SearchOutlined />搜索</span>} key="search">
-            <div className="search-form">
-              <Row gutter={[16, 16]}>
-                <Col span={24}>
-                  <Search
-                    placeholder="输入关键词、标题、作者或DOI进行搜索"
-                    enterButton={
-                      <Button 
-                        type="primary" 
-                        icon={<SearchOutlined />} 
-                        loading={loading}
-                        size="large"
-                      >
-                        搜索论文
-                      </Button>
-                    }
-                    size="large"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onSearch={handleSearch}
-                    className="search-input"
-                    allowClear
-                  />
-                </Col>
-              </Row>
-              
-              {/* 搜索模式切换 */}
-              <div style={{ marginTop: 12, marginBottom: 8 }}>
-                <Space align="center">
+          
+          <div className="search-main">
+            <div className="search-input-wrapper">
+              <Search
+                placeholder="输入关键词、标题、作者或DOI进行搜索"
+                enterButton={
+                  <Button 
+                    type="primary" 
+                    icon={<SearchOutlined />} 
+                    loading={loading || isProgressSearching}
+                    className="search-btn"
+                  >
+                    搜索
+                  </Button>
+                }
+                size="large"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onSearch={handleSearch}
+                className="modern-search-input"
+                allowClear
+              />
+            </div>
+            
+            <div className="search-controls">
+              <Space size="middle">
+                <div className="search-mode-switch">
                   <Text type="secondary">搜索模式：</Text>
                   <Switch
                     checked={useProgressSearch}
                     onChange={setUseProgressSearch}
-                    checkedChildren="智能搜索"
-                    unCheckedChildren="标准搜索"
+                    checkedChildren="智能"
+                    unCheckedChildren="标准"
                   />
-                  <Tooltip title={useProgressSearch ? "智能多源搜索：同时检索多个学术数据库，实时显示搜索进度和结果统计" : "标准搜索模式：快速搜索单一数据源，适合简单查询"}>
-                    <InfoCircleOutlined style={{ color: '#1890ff' }} />
-                  </Tooltip>
-                </Space>
-              </div>
-
-              {/* 智能搜索进度显示 */}
-              {useProgressSearch && (
-                <SearchProgressComponent
-                  isVisible={isProgressSearching}
-                  progressData={searchProgress ? [searchProgress] : []}
-                  onCancel={handleCancelSearch}
-                />
-              )}
-              
-              {/* 简化的搜索提示 */}
-              {!searchQuery && (
-                <div style={{ marginTop: 12, marginBottom: 12 }}>
-                  <Text type="secondary" style={{ fontSize: '13px' }}>
-                    💡 使用英文关键词获得更好结果 • 支持标题、作者、DOI搜索
-                  </Text>
                 </div>
-              )}
-              
-
+                
+                <Button 
+                  icon={<FilterOutlined />} 
+                  onClick={() => setFiltersVisible(true)}
+                  className={`control-btn ${filtersVisible ? 'active' : ''}`}
+                >
+                  筛选
+                </Button>
+                
+                <Button 
+                  icon={<SettingOutlined />} 
+                  onClick={() => setSettingsVisible(true)}
+                  className="control-btn"
+                >
+                  设置
+                </Button>
+              </Space>
             </div>
-
-            {/* 简化的筛选条件 */}
-            {(selectedPaperTypes.length > 0 || minCitations > 0 || yearRange[0] > 2020 || yearRange[1] < new Date().getFullYear()) && (
-              <div style={{ marginBottom: 12, padding: '8px 12px', background: '#f5f5f5', borderRadius: '6px' }}>
-                <Space wrap size="small">
-                  {selectedPaperTypes.length > 0 && (
-                    <Tag color="blue">类型: {selectedPaperTypes.join(', ')}</Tag>
-                  )}
-                  {minCitations > 0 && (
-                    <Tag color="green">引用数 ≥ {minCitations}</Tag>
-                  )}
-                  {(yearRange[0] > 2020 || yearRange[1] < new Date().getFullYear()) && (
-                    <Tag color="orange">年份: {yearRange[0]}-{yearRange[1]}</Tag>
-                  )}
-                  <Button 
-                    size="small" 
-                    type="text"
-                    onClick={() => {
-                      setSelectedPaperTypes([]);
-                      setMinCitations(0);
-                      setYearRange([2020, new Date().getFullYear()]);
-                      setAuthorFilter('');
-                      setJournalFilter('');
-                      setKeywordFilter('');
-                    }}
-                  >
-                    清除
-                  </Button>
-                </Space>
-              </div>
-            )}
-          </TabPane>
-          
-          <TabPane tab={<span><HeartOutlined />收藏 ({favorites.length})</span>} key="favorites">
-            <div className="favorites-content">
-              {favorites.length > 0 ? (
-                <List
-                  itemLayout="vertical"
-                  dataSource={getFavoritePapers()}
-                  renderItem={paper => (
-                    <List.Item
-                      className="paper-item"
-                      actions={[
-                        <Button 
-                          icon={<HeartFilled />} 
-                          onClick={() => handleFavorite(paper.id, true)}
-                          className="action-button favorite-button favorited"
-                          danger
-                        >
-                          取消收藏
-                        </Button>,
-                        <Button 
-                          icon={<DownloadOutlined />} 
-                          onClick={() => handleDownload(paper)}
-                          className="action-button download-button"
-                        >
-                          下载
-                        </Button>,
-                        <Button 
-                          icon={<LinkOutlined />} 
-                          onClick={() => handleViewOriginal(paper)}
-                          className="action-button"
-                        >
-                          原文
-                        </Button>
-                      ]}
-                    >
-                      <Title level={5} className="paper-title">{paper.title || '未知标题'}</Title>
-                      <div className="paper-meta">
-                        <Text><UserOutlined /> {paper.authors?.join(', ') || '未知作者'}</Text>
-                        <br />
-                        <Text><CalendarOutlined /> {paper.year || '未知年份'}</Text>
-                        <br />
-                        <Text><BookOutlined /> {paper.journal || '未知期刊'}</Text>
-                      </div>
-                      <Paragraph ellipsis={{ rows: 2 }} className="paper-abstract">
-                        {paper.abstract || '暂无摘要'}
-                      </Paragraph>
-                    </List.Item>
-                  )}
-                />
-              ) : (
-                <Empty description="暂无收藏的论文" />
-              )}
-            </div>
-          </TabPane>
-        </Tabs>
-
-        <div className="results-header">
-          <div className="results-info">
-            <Title level={4}>
-              <FileSearchOutlined /> 
-              {papers.length > 0 ? `搜索结果 (${papers.length})` : '搜索结果'}
-            </Title>
-            {searchQuery && (
-              <Text type="secondary">关键词: "{searchQuery}"</Text>
-            )}
           </div>
-          <Space>
-            <Select
-              value={sortBy}
-              onChange={handleSortChange}
-              className="sort-select"
-              placeholder="排序方式"
-              suffixIcon={<SortAscendingOutlined />}
-            >
-              <Option value="relevance">按相关度排序</Option>
-              <Option value="date_desc">按日期排序（最新）</Option>
-              <Option value="date_asc">按日期排序（最早）</Option>
-              <Option value="citations_desc">按引用次数排序</Option>
-              <Option value="citations_asc">按引用次数排序（升序）</Option>
-            </Select>
-          </Space>
         </div>
+      </div>
 
-        {loading ? (
-          <List
-            itemLayout="vertical"
-            dataSource={Array(5).fill(0).map((_, index) => ({ id: `skeleton-${index}` }))}
-            renderItem={(item) => (
-              <List.Item key={item.id}>
-                <Skeleton active avatar={false} title paragraph={{ rows: 4 }} />
-              </List.Item>
-            )}
-            className="paper-list"
+      {/* 搜索进度 */}
+      {(isProgressSearching || searchProgress) && (
+        <div className="progress-section">
+          <SearchProgressComponent
+            progress={searchProgress}
+            isSearching={isProgressSearching}
+            onCancel={handleCancelSearch}
           />
-        ) : papers && Array.isArray(papers) && papers.length > 0 ? (
-          <List
-            itemLayout="vertical"
-            size="large"
-            pagination={{
-              pageSize: 10,
-              showSizeChanger: true,
-              showQuickJumper: true,
-              showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
-              pageSizeOptions: ['5', '10', '20', '50']
-            }}
-            dataSource={papers && Array.isArray(papers) ? papers.filter(paper => paper && typeof paper === 'object') : []}
-            renderItem={paper => {
-              // 确保paper.id存在
-              const paperId = paper?.id || '';
-              const isFavorite = !!(paperId && favorites.includes(paperId));
+        </div>
+      )}
+
+      {/* 搜索结果 */}
+      {papers.length > 0 && (
+        <div className="results-section">
+          <Card className="results-card" bordered={false}>
+            <div className="results-header">
+              <div className="results-info">
+                <Title level={4} style={{ margin: 0 }}>
+                  找到 {papers.length} 篇论文
+                </Title>
+                <Text type="secondary">
+                  {searchQuery && `关于 "${searchQuery}" 的搜索结果`}
+                </Text>
+              </div>
               
-              return (
-                <List.Item
-                  className="paper-item"
-                  key={paperId || Math.random()}
-                  actions={[
-                    <Button 
-                      icon={isFavorite ? <HeartFilled /> : <HeartOutlined />} 
-                      onClick={() => paperId && handleFavorite(paperId, isFavorite)}
-                      className={`action-button favorite-button ${isFavorite ? 'favorited' : ''}`}
-                      type={isFavorite ? 'primary' : 'default'}
-                    >
-                      {isFavorite ? '已收藏' : '收藏'}
-                    </Button>,
-                    <Button 
-                      icon={<DownloadOutlined />} 
-                      onClick={() => handleDownload(paper)}
-                      className="action-button download-button"
-                    >
-                      下载
-                    </Button>,
-                    <Button 
-                      icon={<LinkOutlined />} 
-                      onClick={() => handleViewOriginal(paper)}
-                      className="action-button"
-                    >
-                      原文
-                    </Button>,
-                    <Button 
-                      icon={<InfoCircleOutlined />} 
-                      onClick={() => handleViewDetails(paper)}
-                      className="action-button details-button"
-                    >
-                      详情
-                    </Button>
-                  ]}
-                  extra={
-                    <div className="paper-extra">
-                      <Space direction="vertical" align="end">
-                        <Tag color={paper.source === 'arXiv' ? 'blue' : 'green'}>
-                          {paper.source || '未知来源'}
-                        </Tag>
-                        {paper.citations && (
-                          <Text type="secondary">
-                            引用: {paper.citations}
-                          </Text>
+              <div className="results-controls">
+                <Select
+                  value={sortBy}
+                  onChange={handleSortChange}
+                  className="sort-select"
+                  suffixIcon={<SortAscendingOutlined />}
+                >
+                  <Option value="relevance">相关性</Option>
+                  <Option value="date">发布时间</Option>
+                  <Option value="citations">引用次数</Option>
+                  <Option value="title">标题</Option>
+                </Select>
+              </div>
+            </div>
+            
+            <List
+              dataSource={papers}
+              renderItem={(paper, index) => (
+                <List.Item className="paper-item-modern">
+                  <div className="paper-content">
+                    <div className="paper-header">
+                      <Title level={5} className="paper-title">
+                        <a onClick={() => handleViewDetails(paper)}>
+                          {paper.title}
+                        </a>
+                      </Title>
+                      
+                      <div className="paper-actions">
+                        <Tooltip title={favorites.includes(paper.id || '') ? '取消收藏' : '收藏'}>
+                          <Button
+                            type="text"
+                            icon={favorites.includes(paper.id || '') ? <HeartFilled /> : <HeartOutlined />}
+                            onClick={() => handleFavorite(paper.id || '', favorites.includes(paper.id || ''))}
+                            className={`action-btn ${favorites.includes(paper.id || '') ? 'favorited' : ''}`}
+                          />
+                        </Tooltip>
+                        
+                        <Tooltip title="查看详情">
+                          <Button
+                            type="text"
+                            icon={<EyeOutlined />}
+                            onClick={() => handleViewDetails(paper)}
+                            className="action-btn"
+                          />
+                        </Tooltip>
+                        
+                        <Tooltip title="下载论文">
+                          <Button
+                            type="text"
+                            icon={<DownloadOutlined />}
+                            onClick={() => handleDownload(paper)}
+                            className="action-btn"
+                          />
+                        </Tooltip>
+                        
+                        <Tooltip title="查看原文">
+                          <Button
+                            type="text"
+                            icon={<LinkOutlined />}
+                            onClick={() => handleViewOriginal(paper)}
+                            className="action-btn"
+                          />
+                        </Tooltip>
+                      </div>
+                    </div>
+                    
+                    <div className="paper-meta">
+                      <Space split={<Divider type="vertical" />} wrap>
+                        {paper.authors && paper.authors.length > 0 && (
+                          <span>
+                            <UserOutlined /> {paper.authors.slice(0, 3).join(', ')}
+                            {paper.authors.length > 3 && ' 等'}
+                          </span>
                         )}
-                        {paper.doi && (
-                          <Text type="secondary" copyable={{ text: paper.doi }}>
-                            DOI: {paper.doi}
-                          </Text>
+                        
+                        {paper.year && (
+                          <span>
+                            <CalendarOutlined /> {paper.year}
+                          </span>
+                        )}
+                        
+                        {paper.journal && (
+                          <span>
+                            <BookOutlined /> {paper.journal}
+                          </span>
+                        )}
+                        
+                        {paper.citations !== undefined && (
+                          <span>
+                            <StarOutlined /> 引用 {paper.citations}
+                          </span>
                         )}
                       </Space>
                     </div>
-                  }
-                >
-                  <List.Item.Meta
-                    title={
-                      <div className="paper-title-container">
-                        <Title level={5} className="paper-title">
-                          {paper.title || '未知标题'}
-                        </Title>
-                        {paper.conference && (
-                          <Tag color="orange">{paper.conference}</Tag>
+                    
+                    {paper.abstract && (
+                      <Paragraph 
+                        className="paper-abstract"
+                        ellipsis={{ rows: 3, expandable: true, symbol: '展开' }}
+                      >
+                        {paper.abstract}
+                      </Paragraph>
+                    )}
+                    
+                    {paper.keywords && paper.keywords.length > 0 && (
+                      <div className="paper-keywords">
+                        {paper.keywords.slice(0, 5).map((keyword, idx) => (
+                          <Tag key={idx} className="keyword-tag">
+                            {keyword}
+                          </Tag>
+                        ))}
+                        {paper.keywords.length > 5 && (
+                          <Tag className="keyword-tag">+{paper.keywords.length - 5}</Tag>
                         )}
                       </div>
-                    }
-                    description={
-                      <div className="paper-meta">
-                        <Space wrap>
-                          <Text><UserOutlined /> {paper.authors && Array.isArray(paper.authors) ? paper.authors.join(', ') : '未知作者'}</Text>
-                          <Text><CalendarOutlined /> {paper.year || '未知年份'}</Text>
-                          {paper.journal && (
-                            <Text><BookOutlined /> {paper.journal}</Text>
-                          )}
-                          {paper.volume && (
-                            <Text>Vol. {paper.volume}</Text>
-                          )}
-                          {paper.pages && (
-                            <Text>pp. {paper.pages}</Text>
-                          )}
-                        </Space>
-                      </div>
-                    }
-                  />
-                  <Paragraph ellipsis={{ rows: 3, expandable: true, symbol: '展开' }} className="paper-abstract">
-                    {paper.abstract || '暂无摘要'}
-                  </Paragraph>
-                  <div className="paper-keywords">
-                    {paper.keywords && Array.isArray(paper.keywords) ? 
-                      paper.keywords.map((keyword, index) => (
-                        <Tag key={index} color="blue" className="keyword-tag">{keyword}</Tag>
-                      ))
-                    : null}
+                    )}
                   </div>
                 </List.Item>
-              );
-            }}
-            className="paper-list"
+              )}
+              loading={loading}
+            />
+          </Card>
+        </div>
+      )}
+
+      {/* 空状态 */}
+      {!loading && !isProgressSearching && papers.length === 0 && searchQuery && (
+        <div className="empty-section">
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description={
+              <span>
+                未找到相关论文<br />
+                <Text type="secondary">尝试使用不同的关键词或调整筛选条件</Text>
+              </span>
+            }
           />
-        ) : searchQuery ? (
-          <div className="empty-state">
-            <Empty
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description={
-                <span>
-                  未找到相关论文，请尝试其他关键词
-                </span>
-              }
-            >
-              <Button type="primary" onClick={() => setSearchQuery('')}>
-                清除搜索
-              </Button>
-            </Empty>
-          </div>
-        ) : null}
-      </Card>
+        </div>
+      )}
 
       {/* 筛选抽屉 */}
       <Drawer
@@ -945,288 +762,256 @@ const PaperSearch: React.FC = () => {
         onClose={() => setFiltersVisible(false)}
         open={filtersVisible}
         width={400}
+        className="filter-drawer"
       >
-        <div className="filter-content">
-          <div className="filter-section">
-            <Title level={5}>论文类型</Title>
-            <Checkbox.Group
-              options={paperTypes && Array.isArray(paperTypes) ? paperTypes.map(type => ({ label: type, value: type })) : []}
-              value={selectedPaperTypes}
-              onChange={setSelectedPaperTypes}
-            />
-          </div>
-          
-          <div className="filter-section">
-            <Title level={5}>发表年份</Title>
+        <Space direction="vertical" size="large" style={{ width: '100%' }}>
+          <div>
+            <Text strong>发表年份</Text>
             <Slider
               range
-              min={2020}
+              min={2000}
               max={new Date().getFullYear()}
               value={yearRange}
-              onChange={(value: number | number[]) => {
-                if (Array.isArray(value) && value.length === 2) {
-                  setYearRange([value[0], value[1]]);
-                }
-              }}
+              onChange={setYearRange}
               marks={{
+                2000: '2000',
+                2010: '2010',
                 2020: '2020',
-                [new Date().getFullYear()]: new Date().getFullYear().toString()
+                [new Date().getFullYear()]: '现在'
               }}
             />
           </div>
           
-          <div className="filter-section">
-            <Title level={5}>最小引用数</Title>
+          <div>
+            <Text strong>最小引用次数</Text>
             <InputNumber
               min={0}
               value={minCitations}
-              onChange={(value: number | null) => setMinCitations(value || 0)}
+              onChange={(value) => setMinCitations(value || 0)}
               style={{ width: '100%' }}
-              placeholder="输入最小引用数"
             />
           </div>
           
-          <div className="filter-section">
-            <Title level={5}>作者筛选</Title>
+          <div>
+            <Text strong>作者筛选</Text>
             <Input
+              placeholder="输入作者姓名"
               value={authorFilter}
               onChange={(e) => setAuthorFilter(e.target.value)}
-              placeholder="输入作者姓名"
-              allowClear
             />
           </div>
           
-          <div className="filter-section">
-            <Title level={5}>期刊/会议筛选</Title>
+          <div>
+            <Text strong>期刊筛选</Text>
             <Input
+              placeholder="输入期刊名称"
               value={journalFilter}
               onChange={(e) => setJournalFilter(e.target.value)}
-              placeholder="输入期刊或会议名称"
-              allowClear
             />
           </div>
           
-          <div className="filter-section">
-            <Title level={5}>关键词筛选</Title>
+          <div>
+            <Text strong>关键词筛选</Text>
             <Input
+              placeholder="输入关键词"
               value={keywordFilter}
               onChange={(e) => setKeywordFilter(e.target.value)}
-              placeholder="输入关键词"
-              allowClear
             />
           </div>
           
-          <div className="filter-actions">
-            <Space>
-              <Button 
-                onClick={() => {
-                  setSelectedPaperTypes([]);
-                  setMinCitations(0);
-                  setYearRange([2020, new Date().getFullYear()]);
-                  setAuthorFilter('');
-                  setJournalFilter('');
-                  setKeywordFilter('');
-                }}
-              >
-                重置筛选
-              </Button>
-              <Button 
-                type="primary" 
-                onClick={() => {
-                  if (searchQuery) {
-                    handleSearch(searchQuery);
-                  }
-                  setFiltersVisible(false);
-                }}
-              >
-                应用筛选
-              </Button>
-            </Space>
+          <div>
+            <Text strong>论文类型</Text>
+            <Checkbox.Group
+              options={paperTypes}
+              value={selectedPaperTypes}
+              onChange={setSelectedPaperTypes}
+              style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}
+            />
           </div>
-        </div>
+          
+          <Button 
+            type="primary" 
+            block 
+            onClick={() => {
+              setFiltersVisible(false);
+              if (searchQuery) handleSearch(searchQuery);
+            }}
+          >
+            应用筛选
+          </Button>
+        </Space>
       </Drawer>
-      
+
       {/* 设置模态框 */}
       <Modal
         title="搜索设置"
         open={settingsVisible}
         onCancel={() => setSettingsVisible(false)}
-        footer={[
-          <Button key="cancel" onClick={() => setSettingsVisible(false)}>取消</Button>,
-          <Button key="apply" type="primary" onClick={applySettings} className="settings-button">应用设置</Button>
-        ]}
+        onOk={applySettings}
+        width={600}
         className="settings-modal"
       >
-        <Title level={5} className="settings-title">搜索配置</Title>
-        <div className="settings-item">
-          <Space direction="vertical" style={{ width: '100%' }}>
-            <div style={{ marginBottom: 16 }}>
-              <Text strong>每个源的最大结果数：</Text>
-              <Tooltip title="增加此数值可获得更全面的搜索结果，但会增加搜索时间">
+        <Tabs defaultActiveKey="sources">
+          <TabPane tab="搜索源" key="sources">
+            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+              <div>
+                <Text strong>内置搜索源</Text>
+                <div style={{ marginTop: 8 }}>
+                  {availableSources.map(source => (
+                    <div key={source.id} style={{ marginBottom: 8 }}>
+                      <Checkbox
+                        checked={selectedSources.includes(source.id)}
+                        onChange={(e) => handleSourceChange(source.id, e.target.checked)}
+                      >
+                        {source.name}
+                      </Checkbox>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              <Divider />
+              
+              <div>
+                <Text strong>自定义搜索源</Text>
+                <div style={{ marginTop: 8 }}>
+                  {customSources.map(source => (
+                    <div key={source.id} style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>{source.name}</span>
+                      <Button
+                        type="text"
+                        danger
+                        icon={<DeleteOutlined />}
+                        onClick={() => handleRemoveCustomSource(source.id)}
+                      />
+                    </div>
+                  ))}
+                </div>
+                
+                <div style={{ marginTop: 16 }}>
+                  <Input
+                    placeholder="搜索源名称"
+                    value={newSourceName}
+                    onChange={(e) => setNewSourceName(e.target.value)}
+                    style={{ marginBottom: 8 }}
+                  />
+                  <Input
+                    placeholder="搜索源URL"
+                    value={newSourceUrl}
+                    onChange={(e) => setNewSourceUrl(e.target.value)}
+                    style={{ marginBottom: 8 }}
+                  />
+                  <Input
+                    placeholder="描述（可选）"
+                    value={newSourceDescription}
+                    onChange={(e) => setNewSourceDescription(e.target.value)}
+                    style={{ marginBottom: 8 }}
+                  />
+                  <Button
+                    type="dashed"
+                    icon={<PlusOutlined />}
+                    onClick={handleAddCustomSource}
+                    block
+                  >
+                    添加自定义搜索源
+                  </Button>
+                </div>
+              </div>
+            </Space>
+          </TabPane>
+          
+          <TabPane tab="搜索参数" key="params">
+            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+              <div>
+                <Text strong>每个源的最大结果数</Text>
                 <InputNumber
                   min={10}
                   max={100}
                   value={maxResultsPerSource}
                   onChange={(value) => setMaxResultsPerSource(value || 30)}
-                  style={{ marginLeft: 8, width: 80 }}
-                />
-              </Tooltip>
-              <Text type="secondary" style={{ marginLeft: 8, fontSize: '12px' }}>推荐值：30-50</Text>
-            </div>
-          </Space>
-        </div>
-        
-        <Title level={5} className="settings-title">选择搜索源</Title>
-        <div className="settings-item">
-          <Space direction="vertical" style={{ width: '100%' }}>
-            {availableSources.map((source) => (
-              <div key={source.id}>
-                <Switch 
-                  checked={selectedSources.includes(source.id)} 
-                  onChange={(checked) => handleSourceChange(source.id, checked)} 
-                />
-                <Text style={{ marginLeft: 8 }}>{source.name}</Text>
-              </div>
-            ))}
-          </Space>
-        </div>
-        
-        <Title level={5} className="settings-title" style={{ marginTop: 20 }}>自定义搜索源</Title>
-        <div className="settings-item">
-          <Space direction="vertical" style={{ width: '100%' }}>
-            {/* 显示已添加的自定义搜索源 */}
-            {customSources && Array.isArray(customSources) ? customSources.map(source => (
-              <div key={source.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <Text>{source.name}</Text>
-                  <Text type="secondary" style={{ marginLeft: 8, fontSize: '12px' }}>{source.url}</Text>
-                </div>
-                <Button 
-                  type="text" 
-                  danger 
-                  icon={<DeleteOutlined />} 
-                  onClick={() => handleRemoveCustomSource(source.id)}
+                  style={{ width: '100%', marginTop: 8 }}
                 />
               </div>
-            )) : null}
-            
-            {/* 添加新的自定义搜索源 */}
-            <div style={{ marginTop: 10 }}>
-              <Form layout="vertical" style={{ marginBottom: 0 }}>
-                <Form.Item label="搜索源名称" style={{ marginBottom: 8 }}>
-                  <Input 
-                    placeholder="例如: Google Scholar" 
-                    value={newSourceName}
-                    onChange={(e) => setNewSourceName(e.target.value)}
-                  />
-                </Form.Item>
-                <Form.Item label="搜索源URL" style={{ marginBottom: 8 }}>
-                  <Input 
-                    placeholder="例如: https://scholar.google.com" 
-                    value={newSourceUrl}
-                    onChange={(e) => setNewSourceUrl(e.target.value)}
-                  />
-                </Form.Item>
-                <Button 
-                  type="dashed" 
-                  icon={<PlusOutlined />} 
-                  onClick={handleAddCustomSource}
-                  style={{ width: '100%' }}
-                >
-                  添加搜索源
-                </Button>
-              </Form>
-            </div>
-          </Space>
-        </div>
+            </Space>
+          </TabPane>
+        </Tabs>
       </Modal>
-      
+
       {/* 论文详情模态框 */}
       <Modal
-        title="论文详情"
+        title={selectedPaper?.title}
         open={detailsVisible}
         onCancel={() => setDetailsVisible(false)}
         footer={[
           <Button key="close" onClick={() => setDetailsVisible(false)}>
             关闭
           </Button>,
-          <Button 
-            key="favorite" 
-            icon={selectedPaper && favorites.includes(selectedPaper.id) ? <HeartFilled /> : <HeartOutlined />}
-            onClick={() => selectedPaper && handleFavorite(selectedPaper.id, favorites.includes(selectedPaper.id))}
-          >
-            {selectedPaper && favorites.includes(selectedPaper.id) ? '取消收藏' : '收藏'}
-          </Button>,
-          <Button 
-            key="download" 
-            type="primary" 
-            icon={<DownloadOutlined />}
-            onClick={() => selectedPaper && handleDownload(selectedPaper)}
-          >
-            下载论文
+          <Button key="download" type="primary" icon={<DownloadOutlined />} onClick={() => selectedPaper && handleDownload(selectedPaper)}>
+            下载
           </Button>
         ]}
         width={800}
+        className="details-modal"
       >
         {selectedPaper && (
-          <div className="paper-details">
-            <Title level={4}>{selectedPaper.title}</Title>
-            
-            <div className="detail-item">
+          <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+            <div>
               <Text strong>作者：</Text>
               <Text>{selectedPaper.authors?.join(', ') || '未知'}</Text>
             </div>
-            <div className="detail-item">
-              <Text strong>发布年份：</Text>
+            
+            <div>
+              <Text strong>发表年份：</Text>
               <Text>{selectedPaper.year || '未知'}</Text>
             </div>
-            <div className="detail-item">
-              <Text strong>来源：</Text>
-              <Tag color={selectedPaper.source === 'arXiv' ? 'blue' : 'green'}>
-                {selectedPaper.source || '未知'}
-              </Tag>
-            </div>
+            
             {selectedPaper.journal && (
-              <div className="detail-item">
+              <div>
                 <Text strong>期刊：</Text>
                 <Text>{selectedPaper.journal}</Text>
               </div>
             )}
-            {selectedPaper.conference && (
-              <div className="detail-item">
-                <Text strong>会议：</Text>
-                <Text>{selectedPaper.conference}</Text>
-              </div>
-            )}
-            {selectedPaper.doi && (
-              <div className="detail-item">
-                <Text strong>DOI：</Text>
-                <Text copyable={{ text: selectedPaper.doi }}>{selectedPaper.doi}</Text>
-              </div>
-            )}
-            {selectedPaper.citations && (
-              <div className="detail-item">
+            
+            {selectedPaper.citations !== undefined && (
+              <div>
                 <Text strong>引用次数：</Text>
                 <Text>{selectedPaper.citations}</Text>
               </div>
             )}
+            
+            {selectedPaper.abstract && (
+              <div>
+                <Text strong>摘要：</Text>
+                <Paragraph>{selectedPaper.abstract}</Paragraph>
+              </div>
+            )}
+            
+            {selectedPaper.keywords && selectedPaper.keywords.length > 0 && (
+              <div>
+                <Text strong>关键词：</Text>
+                <div style={{ marginTop: 8 }}>
+                  {selectedPaper.keywords.map((keyword, idx) => (
+                    <Tag key={idx} style={{ marginBottom: 4 }}>
+                      {keyword}
+                    </Tag>
+                  ))}
+                </div>
+              </div>
+            )}
+            
             {selectedPaper.url && (
-              <div className="detail-item">
+              <div>
                 <Text strong>原文链接：</Text>
                 <Button 
                   type="link" 
                   icon={<LinkOutlined />}
-                  onClick={() => handleViewOriginal(selectedPaper)}
+                  onClick={() => window.open(selectedPaper.url, '_blank')}
                 >
                   查看原文
                 </Button>
               </div>
             )}
-            <div className="detail-item">
-              <Text strong>摘要：</Text>
-              <Paragraph>{selectedPaper.abstract || '暂无摘要'}</Paragraph>
-            </div>
-          </div>
+          </Space>
         )}
       </Modal>
     </div>
