@@ -54,8 +54,11 @@ export class PaperSearchProgressService {
       const requestData = {
         query: query.trim(),
         sources,
-        max_results: Math.max(1, Math.min(maxResults, 50)) // 限制在1-50之间
+        max_results: Math.max(1, maxResults)
       };
+      
+      console.log('🔍 进度搜索请求数据:', requestData);
+      console.log('🔍 每个源最大结果数:', requestData.max_results);
 
       // 发送POST请求启动搜索
       const response = await fetch('/api/paper-search/search-with-progress', {

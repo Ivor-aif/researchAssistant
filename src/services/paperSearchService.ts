@@ -10,6 +10,8 @@ interface SearchSource {
   id: string;
   name: string;
   url: string;
+  search_mode?: 'fuzzy' | 'exact';
+  timeout?: number;
 }
 
 // API响应接口
@@ -84,9 +86,11 @@ export const searchFromMultipleSources = async (
       const response = await axios.post<SearchResponse>(`${API_BASE_URL}/paper-search/search`, {
         query: query.trim(),
         sources: validSources,
-        max_results: maxResults
+        max_results: maxResults,
+        search_mode: validSources[0]?.search_mode || 'fuzzy', // 使用第一个源的搜索模式或默认模糊搜索
+        timeout: validSources[0]?.timeout || 60 // 使用第一个源的超时时间或默认60秒
       }, {
-        timeout: 30000, // 30秒超时
+        timeout: (validSources[0]?.timeout || 60) * 1000, // 转换为毫秒
         headers: {
           'Content-Type': 'application/json'
         }
@@ -117,7 +121,7 @@ export const searchFromMultipleSources = async (
       
       // 使用本地模拟数据作为备选
       console.log('🔍 使用本地模拟数据进行搜索');
-      const mockPapers = getMockPapersByKeyword(query, validSources);
+      const mockPapers = getMockPapersByKeyword(query, validSources, maxResults);
       return mockPapers;
     }
   } catch (error: any) {
@@ -252,9 +256,10 @@ export const downloadPaper = async (paperId: string, paperUrl: string): Promise<
  * 生成基于关键词和搜索源的模拟论文数据
  * @param query 搜索关键词
  * @param sources 搜索源列表
+ * @param maxResults 每个源的最大结果数
  * @returns 模拟论文列表
  */
-export const getMockPapersByKeyword = (query: string, sources: SearchSource[]): Paper[] => {
+export const getMockPapersByKeyword = (query: string, sources: SearchSource[], maxResults: number = 10): Paper[] => {
   // 添加防御性编程
   if (!query || typeof query !== 'string' || query.trim() === '') {
     console.error('搜索关键词无效');
@@ -291,39 +296,74 @@ export const getMockPapersByKeyword = (query: string, sources: SearchSource[]): 
   
   // 为每个搜索源生成模拟数据
   validSources.forEach((source) => {
-    // 为每个源生成2-4篇论文
-    const paperCount = Math.floor(Math.random() * 3) + 2; // 2到4之间的随机数
+    // 根据搜索模式和maxResults参数生成论文数量
+    let paperCount;
+    if (source.search_mode === 'exact') {
+      // 精确搜索：生成maxResults的60-80%的论文数量
+      const minCount = Math.max(1, Math.floor(maxResults * 0.6));
+      const maxCount = Math.max(minCount, Math.floor(maxResults * 0.8));
+      paperCount = Math.floor(Math.random() * (maxCount - minCount + 1)) + minCount;
+    } else {
+      // 模糊搜索：生成maxResults的80-100%的论文数量，获取更多结果
+      const minCount = Math.max(1, Math.floor(maxResults * 0.8));
+      const maxCount = maxResults;
+      paperCount = Math.floor(Math.random() * (maxCount - minCount + 1)) + minCount;
+    }
     
     for (let i = 0; i < paperCount; i++) {
       const randomId = Date.now() - Math.floor(Math.random() * 10000);
       const randomYear = new Date().getFullYear() - Math.floor(Math.random() * 5); // 最近5年内
       const randomCitations = Math.floor(Math.random() * 200); // 0到199之间的随机引用次数
       
-      // 生成不同类型的标题
+      // 根据搜索模式生成不同类型的标题
       let title = '';
-      if (i % 3 === 0) {
-        title = `${query}的研究进展与应用`;
-      } else if (i % 3 === 1) {
-        title = `${source.name}领域中${query}的实验分析`;
+      if (source.search_mode === 'exact') {
+        // 精确搜索：生成更精确匹配的标题
+        if (i % 3 === 0) {
+          title = `${query}: A Comprehensive Study`;
+        } else if (i % 3 === 1) {
+          title = `Advanced ${query} Techniques in ${source.name}`;
+        } else {
+          title = `${query} Applications and Future Directions`;
+        }
       } else {
-        title = `基于${query}的${source.name}创新方法`;
+        // 模糊搜索：生成更多样化的相关标题
+        const titleVariations = [
+          `${query}的研究进展与应用`,
+          `${source.name}领域中${query}的实验分析`,
+          `基于${query}的${source.name}创新方法`,
+          `${query}技术在${source.name}中的应用研究`,
+          `面向${query}的${source.name}系统设计`,
+          `${query}相关技术综述`,
+          `${source.name}环境下的${query}优化策略`,
+          `${query}驱动的${source.name}解决方案`
+        ];
+        title = titleVariations[i % titleVariations.length];
       }
       
       // 生成不同的作者组合
       const authorSets = [
         [`${source.name}研究员 A`, `${source.name}研究员 B`],
         [`${source.name}学者 C`, `${source.name}学者 D`, `国际合作者 E`],
-        [`研究团队 F`]
+        [`研究团队 F`, `合作学者 G`],
+        [`${source.name}实验室`, `联合研究组`]
       ];
       
-      // 生成不同的摘要
+      // 根据搜索模式生成不同的摘要
       let abstract = '';
-      if (i % 3 === 0) {
-        abstract = `本研究探讨了${query}在${source.name}领域的应用和最新进展。通过系统分析和实验验证，我们提出了新的理论框架。`;
-      } else if (i % 3 === 1) {
-        abstract = `本文综述了近年来${source.name}领域关于${query}的研究现状，并对未来发展趋势进行了展望。`;
+      if (source.search_mode === 'exact') {
+        // 精确搜索：生成更精确的摘要
+        abstract = `本研究专注于${query}的核心技术和方法。通过严格的实验设计和数据分析，我们验证了${query}在${source.name}领域的有效性和可行性。`;
       } else {
-        abstract = `我们提出了一种基于${query}的创新方法，用于解决${source.name}领域中的关键问题，实验结果表明该方法具有显著优势。`;
+        // 模糊搜索：生成更多样化的摘要
+        const abstractVariations = [
+          `本研究探讨了${query}在${source.name}领域的应用和最新进展。通过系统分析和实验验证，我们提出了新的理论框架。`,
+          `本文综述了近年来${source.name}领域关于${query}的研究现状，并对未来发展趋势进行了展望。`,
+          `我们提出了一种基于${query}的创新方法，用于解决${source.name}领域中的关键问题，实验结果表明该方法具有显著优势。`,
+          `通过对${query}相关技术的深入研究，本文提出了一套完整的${source.name}解决方案，为该领域的发展提供了新的思路。`,
+          `本研究从${query}的角度出发，分析了${source.name}领域面临的挑战和机遇，提出了相应的对策和建议。`
+        ];
+        abstract = abstractVariations[i % abstractVariations.length];
       }
       
       // 生成关键词组合

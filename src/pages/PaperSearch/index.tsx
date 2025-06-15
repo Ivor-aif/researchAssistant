@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Input, Button, Card, List, Tag, Space, Typography, Skeleton, Select, 
-  Checkbox, Empty, Modal, Switch, message, Form, Tooltip, Badge, 
-  Row, Col, Drawer, Tabs, Slider, InputNumber, Divider
+  Input, Button, Card, List, Tag, Space, Typography, Select, 
+  Checkbox, Empty, Modal, Switch, message, Tooltip, 
+  Drawer, Tabs, Slider, InputNumber, Divider, Radio
 } from 'antd';
 import { 
   SearchOutlined, HeartOutlined, HeartFilled, DownloadOutlined, 
-  InfoCircleOutlined, FileSearchOutlined, SettingOutlined, 
+  FileSearchOutlined, SettingOutlined, 
   PlusOutlined, DeleteOutlined, LinkOutlined, CalendarOutlined,
   UserOutlined, BookOutlined, FilterOutlined, SortAscendingOutlined,
-  StarOutlined, EyeOutlined, CloseOutlined
+  StarOutlined, EyeOutlined
 } from '@ant-design/icons';
 import { getFavoritePapers, addToFavorites, removeFromFavorites } from '../../services/favoriteService';
 import { searchFromMultipleSources, getAvailableSources, getDefaultSources, downloadPaper } from '../../services/paperSearchService';
@@ -71,7 +71,7 @@ const PaperSearch: React.FC = () => {
   const [filtersVisible, setFiltersVisible] = useState(false);
   const [selectedPaper, setSelectedPaper] = useState<Paper | null>(null);
   const [detailsVisible, setDetailsVisible] = useState(false);
-  const [activeTab, setActiveTab] = useState('search');
+
   
   // 搜索源状态
   const [availableSources, setAvailableSources] = useState<Array<{id: string, name: string, url: string}>>([]);
@@ -85,7 +85,9 @@ const PaperSearch: React.FC = () => {
   const [authorFilter, setAuthorFilter] = useState('');
   const [journalFilter, setJournalFilter] = useState('');
   const [keywordFilter, setKeywordFilter] = useState('');
-  const [maxResultsPerSource, setMaxResultsPerSource] = useState(30);
+  const [maxResultsPerSource, setMaxResultsPerSource] = useState(50);
+  const [searchMode, setSearchMode] = useState<'fuzzy' | 'exact'>('fuzzy');
+  const [searchTimeout, setSearchTimeout] = useState(60);
   
   // 进度搜索状态
   const [useProgressSearch, setUseProgressSearch] = useState(true);
@@ -228,9 +230,16 @@ const PaperSearch: React.FC = () => {
     setPapers([]);
 
     try {
+      // 为搜索源添加搜索模式和超时时间参数
+      const enhancedSources = sources.map(source => ({
+        ...source,
+        search_mode: searchMode,
+        timeout: searchTimeout
+      }));
+      
       await paperSearchProgressService.searchWithProgress(
         value,
-        sources,
+        enhancedSources,
         maxResultsPerSource,
         {
           onProgress: (progress) => {
@@ -268,7 +277,14 @@ const PaperSearch: React.FC = () => {
     setLoading(true);
 
     try {
-      const results = await searchFromMultipleSources(value, sources);
+      // 为搜索源添加搜索模式和超时时间参数
+      const enhancedSources = sources.map(source => ({
+        ...source,
+        search_mode: searchMode,
+        timeout: searchTimeout
+      }));
+      
+      const results = await searchFromMultipleSources(value, enhancedSources, maxResultsPerSource);
       
       if (Array.isArray(results)) {
         const filteredResults = applyLocalFilters(results);
@@ -594,8 +610,8 @@ const PaperSearch: React.FC = () => {
       {(isProgressSearching || searchProgress) && (
         <div className="progress-section">
           <SearchProgressComponent
-            progress={searchProgress}
-            isSearching={isProgressSearching}
+            isVisible={isProgressSearching || !!searchProgress}
+            progressData={searchProgress ? [searchProgress] : []}
             onCancel={handleCancelSearch}
           />
         </div>
@@ -632,7 +648,7 @@ const PaperSearch: React.FC = () => {
             
             <List
               dataSource={papers}
-              renderItem={(paper, index) => (
+              renderItem={(paper) => (
                 <List.Item className="paper-item-modern">
                   <div className="paper-content">
                     <div className="paper-header">
@@ -772,7 +788,7 @@ const PaperSearch: React.FC = () => {
               min={2000}
               max={new Date().getFullYear()}
               value={yearRange}
-              onChange={setYearRange}
+              onChange={(value) => setYearRange(value as [number, number])}
               marks={{
                 2000: '2000',
                 2010: '2010',
@@ -877,7 +893,13 @@ const PaperSearch: React.FC = () => {
                 <div style={{ marginTop: 8 }}>
                   {customSources.map(source => (
                     <div key={source.id} style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span>{source.name}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Checkbox
+                          checked={selectedSources.includes(source.id)}
+                          onChange={(e) => handleSourceChange(source.id, e.target.checked)}
+                        />
+                        <span>{source.name}</span>
+                      </div>
                       <Button
                         type="text"
                         danger
@@ -923,6 +945,23 @@ const PaperSearch: React.FC = () => {
           <TabPane tab="搜索参数" key="params">
             <Space direction="vertical" size="middle" style={{ width: '100%' }}>
               <div>
+                <Text strong>搜索模式</Text>
+                <div style={{ marginTop: 8 }}>
+                  <Radio.Group
+                    value={searchMode}
+                    onChange={(e) => setSearchMode(e.target.value)}
+                  >
+                    <Radio value="fuzzy">模糊搜索（推荐）</Radio>
+                    <Radio value="exact">精确搜索</Radio>
+                  </Radio.Group>
+                  <div style={{ marginTop: 4, fontSize: '12px', color: '#666' }}>
+                    模糊搜索：获取更多相关结果，适合探索性搜索<br/>
+                    精确搜索：按标题、作者、摘要等精确匹配
+                  </div>
+                </div>
+              </div>
+              
+              <div>
                 <Text strong>每个源的最大结果数</Text>
                 <InputNumber
                   min={10}
@@ -930,6 +969,22 @@ const PaperSearch: React.FC = () => {
                   value={maxResultsPerSource}
                   onChange={(value) => setMaxResultsPerSource(value || 30)}
                   style={{ width: '100%', marginTop: 8 }}
+                  addonAfter="篇"
+                />
+                <div style={{ marginTop: 4, fontSize: '12px', color: '#666' }}>
+                  建议设置较大值以获取更多结果
+                </div>
+              </div>
+              
+              <div>
+                <Text strong>搜索超时时间</Text>
+                <InputNumber
+                  min={30}
+                  max={300}
+                  value={searchTimeout}
+                  onChange={(value) => setSearchTimeout(value || 60)}
+                  style={{ width: '100%', marginTop: 8 }}
+                  addonAfter="秒"
                 />
               </div>
             </Space>
