@@ -17,6 +17,7 @@ import {
   GitlabOutlined
 } from '@ant-design/icons';
 import { useAuth } from '../../contexts/AuthContext';
+import { getUnreadCount } from '../../services/messageService';
 
 const { Header, Content, Sider, Footer } = Layout;
 const { Title, Text } = Typography;
@@ -26,11 +27,31 @@ const AppHeader = React.memo(() => {
   const { user, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [unreadCount, setUnreadCount] = React.useState(0);
   
   const handleLogout = () => {
     logout();
     navigate('/auth');
   };
+
+  // 加载未读消息数量
+  React.useEffect(() => {
+    const loadUnreadCount = async () => {
+      try {
+        const count = await getUnreadCount();
+        setUnreadCount(count);
+      } catch (error) {
+        console.error('获取未读消息数量失败:', error);
+      }
+    };
+    
+    if (isAuthenticated) {
+      loadUnreadCount();
+      // 每30秒刷新一次未读数量
+      const interval = setInterval(loadUnreadCount, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [isAuthenticated]);
   
   const userMenuItems = [
     {
@@ -82,11 +103,12 @@ const AppHeader = React.memo(() => {
         <Title level={4} style={{ margin: 0, color: '#fff' }}>AI 研究助手</Title>
       </div>
       <Space size="large">
-        <Badge count={5} size="small">
+        <Badge count={unreadCount} size="small">
           <Button 
             type="text" 
             icon={<BellOutlined />} 
             style={{ color: '#fff', fontSize: '18px' }}
+            onClick={() => navigate('/auth?messages=true')}
           />
         </Badge>
         {isAuthenticated ? (

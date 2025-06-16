@@ -1,0 +1,342 @@
+/* 消息页面样式 */
+.messages-container {
+  padding: 0;
+  width: 100%;
+}
+
+.messages-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+}
+
+.message-item {
+  border-radius: 8px;
+  margin-bottom: 8px;
+  transition: all 0.3s ease;
+  border: 1px solid #f0f0f0;
+  background: #fff;
+}
+
+.message-item:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-color: #d9d9d9;
+}
+
+.message-item.unread {
+  background: linear-gradient(90deg, #f6ffed 0%, #fff 100%);
+  border-left: 4px solid #52c41a;
+}
+
+.message-item.unread .message-content {
+  font-weight: 500;
+}
+
+.message-item.read {
+  background: #fafafa;
+  opacity: 0.8;
+}
+
+.message-content {
+  width: 100%;
+}
+
+.message-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.message-header .ant-space {
+  flex: 1;
+}
+
+/* 消息类型标签样式 */
+.ant-tag {
+  border-radius: 4px;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 优先级样式 */
+.priority-urgent {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 77, 79, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(255, 77, 79, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 77, 79, 0);
+  }
+}
+
+/* 批量操作栏样式 */
+.batch-actions {
+  background: #e6f7ff;
+  border: 1px solid #91d5ff;
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin: 16px 0;
+}
+
+/* 筛选器样式 */
+.filter-container {
+  background: #fafafa;
+  border: 1px solid #f0f0f0;
+  border-radius: 6px;
+  padding: 16px;
+  margin: 16px 0;
+}
+
+/* 消息列表样式 */
+.ant-list-item {
+  padding: 16px !important;
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.ant-list-item-action {
+  margin-left: 16px;
+}
+
+.ant-list-item-action > li {
+  padding: 0 4px;
+}
+
+/* 分页样式 */
+.ant-pagination {
+  margin-top: 24px;
+  text-align: center;
+}
+
+/* 空状态样式 */
+.ant-empty {
+  padding: 40px 0;
+}
+
+/* 消息详情弹窗样式 */
+.ant-modal-body {
+  padding: 24px;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .messages-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  
+  .header-left {
+    width: 100%;
+  }
+  
+  .message-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  .ant-list-item-action {
+    margin-left: 0;
+    margin-top: 8px;
+  }
+  
+  .filter-container .ant-space {
+    width: 100%;
+  }
+  
+  .filter-container .ant-select {
+    width: 100% !important;
+    margin-bottom: 8px;
+  }
+}
+
+/* 加载状态样式 */
+.ant-spin-container {
+  min-height: 200px;
+}
+
+/* 消息状态指示器 */
+.message-status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 8px;
+}
+
+.message-status-indicator.unread {
+  background: #52c41a;
+  box-shadow: 0 0 0 2px rgba(82, 196, 26, 0.2);
+}
+
+.message-status-indicator.read {
+  background: #d9d9d9;
+}
+
+/* 消息操作按钮样式 */
+.message-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.message-actions .ant-btn {
+  border-radius: 4px;
+  font-size: 12px;
+  height: 28px;
+  padding: 0 12px;
+}
+
+/* 消息内容截断样式 */
+.message-content-preview {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.5;
+  max-height: 3em;
+}
+
+/* 时间显示样式 */
+.message-time {
+  font-size: 12px;
+  color: #999;
+  white-space: nowrap;
+}
+
+/* 选择框样式 */
+.message-checkbox {
+  margin-right: 12px;
+}
+
+/* 标签组合样式 */
+.message-tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* 消息标题样式 */
+.message-title {
+  margin: 8px 0 4px 0;
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.message-title.unread {
+  font-weight: 600;
+  color: #000;
+}
+
+.message-title.read {
+  font-weight: 400;
+  color: #666;
+}
+
+/* 消息描述样式 */
+.message-description {
+  margin: 0;
+  color: #666;
+  line-height: 1.5;
+}
+
+.message-description.unread {
+  color: #000;
+}
+
+/* 筛选按钮样式 */
+.filter-button {
+  border-radius: 6px;
+  transition: all 0.3s ease;
+}
+
+.filter-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* 刷新按钮样式 */
+.refresh-button {
+  border-radius: 6px;
+  transition: all 0.3s ease;
+}
+
+.refresh-button:hover {
+  transform: rotate(180deg);
+}
+
+/* 批量操作按钮样式 */
+.batch-action-button {
+  border-radius: 4px;
+  font-size: 12px;
+  height: 28px;
+  transition: all 0.3s ease;
+}
+
+.batch-action-button:hover {
+  transform: translateY(-1px);
+}
+
+/* 消息详情样式 */
+.message-detail {
+  line-height: 1.6;
+}
+
+.message-detail .ant-typography {
+  margin-bottom: 16px;
+}
+
+.message-detail .ant-divider {
+  margin: 16px 0;
+}
+
+/* 动画效果 */
+.message-item {
+  animation: fadeInUp 0.3s ease-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 滚动条样式 */
+.messages-container ::-webkit-scrollbar {
+  width: 6px;
+}
+
+.messages-container ::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.messages-container ::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.messages-container ::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
