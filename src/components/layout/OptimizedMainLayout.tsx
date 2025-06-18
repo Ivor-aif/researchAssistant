@@ -14,7 +14,8 @@ import {
   SettingOutlined,
   BellOutlined,
   GithubOutlined,
-  GitlabOutlined
+  GitlabOutlined,
+  HeartOutlined
 } from '@ant-design/icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { getUnreadCount } from '../../services/messageService';
@@ -156,6 +157,11 @@ const OptimizedMainLayout: React.FC = () => {
       key: 'paper-search',
       icon: <FileSearchOutlined />,
       label: <Link to="/paper-search">论文检索</Link>
+    },
+    {
+      key: 'favorites',
+      icon: <HeartOutlined />,
+      label: <Link to="/favorites">我的收藏</Link>
     },
     {
       key: 'innovation-analysis',
