@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>收藏夹删除功能测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        button {
+            margin: 5px;
+            padding: 8px 16px;
+            cursor: pointer;
+        }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        #output {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 3px;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>收藏夹删除功能测试</h1>
+    
+    <div class="test-section">
+        <h3>测试步骤：</h3>
+        <ol>
+            <li>初始化测试数据</li>
+            <li>查看当前收藏夹数据</li>
+            <li>尝试删除论文</li>
+            <li>验证删除结果</li>
+        </ol>
+    </div>
+    
+    <div class="test-section">
+        <h3>操作按钮：</h3>
+        <button onclick="initTestData()">初始化测试数据</button>
+        <button onclick="showCurrentData()">显示当前数据</button>
+        <button onclick="testRemovePaper()">测试删除论文</button>
+        <button onclick="clearAllData()">清除所有数据</button>
+    </div>
+    
+    <div class="test-section">
+        <h3>输出结果：</h3>
+        <div id="output"></div>
+    </div>
+
+    <script>
+        const FAVORITE_FOLDERS_KEY = 'favorite_folders';
+        const DEFAULT_FOLDER_ID = 'default';
+        
+        function log(message, type = 'info') {
+            const output = document.getElementById('output');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : 'info';
+            output.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\n`;
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        function initTestData() {
+            const testFolders = [
+                {
+                    id: DEFAULT_FOLDER_ID,
+                    name: '默认收藏夹',
+                    description: '系统默认收藏夹',
+                    papers: [
+                        {
+                            id: 'paper_001',
+                            title: '测试论文1',
+                            authors: ['作者A', '作者B'],
+                            abstract: '这是一篇测试论文的摘要',
+                            year: 2023,
+                            isFavorite: true
+                        },
+                        {
+                            id: 'paper_002',
+                            title: '测试论文2',
+                            authors: ['作者C'],
+                            abstract: '这是另一篇测试论文的摘要',
+                            year: 2024,
+                            isFavorite: true
+                        }
+                    ],
+                    createdAt: Date.now(),
+                    updatedAt: Date.now()
+                },
+                {
+                    id: 'folder_001',
+                    name: '机器学习',
+                    description: '机器学习相关论文',
+                    papers: [
+                        {
+                            id: 'paper_003',
+                            title: '深度学习论文',
+                            authors: ['作者D'],
+                            abstract: '关于深度学习的研究',
+                            year: 2024,
+                            isFavorite: true
+                        }
+                    ],
+                    createdAt: Date.now(),
+                    updatedAt: Date.now()
+                }
+            ];
+            
+            localStorage.setItem(FAVORITE_FOLDERS_KEY, JSON.stringify(testFolders));
+            log('测试数据初始化完成', 'success');
+        }
+        
+        function showCurrentData() {
+            const data = localStorage.getItem(FAVORITE_FOLDERS_KEY);
+            if (data) {
+                const folders = JSON.parse(data);
+                log('当前收藏夹数据:');
+                folders.forEach(folder => {
+                    log(`收藏夹: ${folder.name} (ID: ${folder.id})`);
+                    folder.papers.forEach(paper => {
+                        log(`  - 论文: ${paper.title} (ID: ${paper.id})`);
+                    });
+                });
+            } else {
+                log('没有找到收藏夹数据', 'error');
+            }
+        }
+        
+        function testRemovePaper() {
+            const paperId = 'paper_001';
+            const folderId = DEFAULT_FOLDER_ID;
+            
+            log(`开始测试删除论文: ${paperId} 从收藏夹: ${folderId}`);
+            
+            const data = localStorage.getItem(FAVORITE_FOLDERS_KEY);
+            if (!data) {
+                log('没有找到收藏夹数据', 'error');
+                return;
+            }
+            
+            const folders = JSON.parse(data);
+            const targetFolder = folders.find(f => f.id === folderId);
+            
+            if (!targetFolder) {
+                log('目标收藏夹不存在', 'error');
+                return;
+            }
+            
+            log(`目标收藏夹: ${targetFolder.name}, 论文数量: ${targetFolder.papers.length}`);
+            log('收藏夹中的论文:');
+            targetFolder.papers.forEach(paper => {
+                log(`  - ${paper.title} (ID: ${paper.id})`);
+            });
+            
+            const originalLength = targetFolder.papers.length;
+            const paperToRemove = targetFolder.papers.find(paper => paper && paper.id === paperId);
+            
+            if (paperToRemove) {
+                log(`找到要删除的论文: ${paperToRemove.title}`, 'success');
+            } else {
+                log('未找到要删除的论文', 'error');
+                return;
+            }
+            
+            targetFolder.papers = targetFolder.papers.filter(paper => paper && paper.id !== paperId);
+            
+            if (targetFolder.papers.length < originalLength) {
+                targetFolder.updatedAt = Date.now();
+                localStorage.setItem(FAVORITE_FOLDERS_KEY, JSON.stringify(folders));
+                log(`成功删除论文，剩余论文数量: ${targetFolder.papers.length}`, 'success');
+            } else {
+                log('删除失败', 'error');
+            }
+        }
+        
+        function clearAllData() {
+            localStorage.removeItem(FAVORITE_FOLDERS_KEY);
+            log('所有数据已清除', 'success');
+        }
+        
+        // 页面加载时显示当前数据
+        window.onload = function() {
+            log('页面加载完成，准备测试收藏夹删除功能');
+            showCurrentData();
+        };
+    </script>
+</body>
+</html>

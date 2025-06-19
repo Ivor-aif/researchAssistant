@@ -83,6 +83,37 @@
   font-size: 12px;
 }
 
+/* 确保按钮可以正常点击 */
+.folder-item .ant-list-item-action {
+  z-index: 10;
+  position: relative;
+}
+
+.folder-item .ant-dropdown-trigger {
+  z-index: 10;
+}
+
+.folder-item .ant-btn {
+  z-index: 10;
+}
+
+/* 确保下拉菜单和弹出框在最上层 */
+.ant-dropdown {
+  z-index: 1050 !important;
+}
+
+.ant-popover {
+  z-index: 1050 !important;
+}
+
+.ant-popconfirm {
+  z-index: 1050 !important;
+}
+
+.ant-modal {
+  z-index: 1060 !important;
+}
+
 /* 论文内容区域 */
 .papers-content {
   flex: 1;

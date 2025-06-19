@@ -1,32 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import {
   Card,
-  List,
-  Button,
   Modal,
   Form,
   Input,
-  Dropdown,
   Space,
   Typography,
   Tag,
+  message,
+  List,
+  Button,
+  Dropdown,
   Tooltip,
   Empty,
-  Popconfirm,
-  message
+  Popconfirm
 } from 'antd';
 import {
+  FolderOutlined,
   PlusOutlined,
   EditOutlined,
   DeleteOutlined,
-  FolderOutlined,
-  HeartOutlined,
   MoreOutlined,
   SwapOutlined,
   BookOutlined
 } from '@ant-design/icons';
 import type { Paper } from '../../types/paper';
-import type { FavoriteFolder, CreateFolderParams, UpdateFolderParams } from '../../types/favorite';
+import type { FavoriteFolder, CreateFolderParams } from '../../types/favorite';
 import {
   getFavoriteFolders,
   createFavoriteFolder,
@@ -38,12 +37,11 @@ import {
 } from '../../services/favoriteService';
 import './style.css';
 
-const { Title, Text } = Typography;
+const { Text, Title } = Typography;
 const { TextArea } = Input;
 
 interface MovePaperModalProps {
   visible: boolean;
-  paper: Paper | null;
   currentFolderId: string;
   folders: FavoriteFolder[];
   onMove: (toFolderId: string) => void;
@@ -52,7 +50,6 @@ interface MovePaperModalProps {
 
 const MovePaperModal: React.FC<MovePaperModalProps> = ({
   visible,
-  paper,
   currentFolderId,
   folders,
   onMove,
@@ -103,16 +100,30 @@ const Favorites: React.FC = () => {
   const [createForm] = Form.useForm();
   const [editForm] = Form.useForm();
 
-  // 加载收藏夹数据
+  // 加载收藏夹列表
   const loadFolders = () => {
     const folderList = getFavoriteFolders();
-    setFolders(folderList);
-    if (!selectedFolder && folderList.length > 0) {
-      setSelectedFolder(folderList[0]);
-    } else if (selectedFolder) {
-      // 更新当前选中的收藏夹数据
-      const updatedFolder = folderList.find(f => f.id === selectedFolder.id);
-      setSelectedFolder(updatedFolder || folderList[0]);
+    
+    // 清理无效的论文数据
+    const cleanedFolders = folderList.map(folder => ({
+      ...folder,
+      papers: folder.papers.filter(paper => paper && paper.id)
+    }));
+    
+    console.log('加载的收藏夹数据:', cleanedFolders.map(f => ({
+      id: f.id,
+      name: f.name,
+      paperCount: f.papers.length,
+      papers: f.papers.map(p => ({ id: p.id, title: p.title }))
+    })));
+    
+    setFolders(cleanedFolders);
+    
+    // 如果当前选中的收藏夹不存在，选择第一个
+    if (selectedFolder && !cleanedFolders.find(f => f.id === selectedFolder.id)) {
+      setSelectedFolder(cleanedFolders[0] || null);
+    } else if (!selectedFolder && cleanedFolders.length > 0) {
+      setSelectedFolder(cleanedFolders[0]);
     }
   };
 
@@ -161,11 +172,32 @@ const Favorites: React.FC = () => {
 
   // 移除论文
   const handleRemovePaper = (paperId: string) => {
-    if (!selectedFolder) return;
+    if (!selectedFolder) {
+      message.error('请先选择收藏夹');
+      return;
+    }
+    
+    if (!paperId) {
+      message.error('论文ID无效');
+      return;
+    }
+    
+    console.log('正在移除论文:', { paperId, folderId: selectedFolder.id, folderName: selectedFolder.name });
     
     const success = removeFromFavorites(paperId, selectedFolder.id);
     if (success) {
+      // 立即更新本地状态
+      const updatedFolder = {
+        ...selectedFolder,
+        papers: selectedFolder.papers.filter(paper => paper.id !== paperId)
+      };
+      setSelectedFolder(updatedFolder);
+      
+      // 重新加载所有收藏夹数据
       loadFolders();
+      message.success('论文已从收藏夹中移除');
+    } else {
+      message.error('移除论文失败，请重试');
     }
   };
 
@@ -186,15 +218,7 @@ const Favorites: React.FC = () => {
     }
   };
 
-  // 打开编辑模态框
-  const openEditModal = (folder: FavoriteFolder) => {
-    setEditingFolder(folder);
-    editForm.setFieldsValue({
-      name: folder.name,
-      description: folder.description
-    });
-    setEditModalVisible(true);
-  };
+
 
   // 打开移动模态框
   const openMoveModal = (paper: Paper) => {
@@ -238,14 +262,22 @@ const Favorites: React.FC = () => {
                 actions={[
                   !folder.isDefault && (
                     <Dropdown
-                      key="more"
+                      placement="bottomRight"
+                      trigger={['click']}
                       menu={{
                         items: [
                           {
                             key: 'edit',
                             label: '编辑',
                             icon: <EditOutlined />,
-                            onClick: () => openEditModal(folder)
+                            onClick: () => {
+                              setEditingFolder(folder);
+                              editForm.setFieldsValue({
+                                name: folder.name,
+                                description: folder.description
+                              });
+                              setEditModalVisible(true);
+                            }
                           },
                           {
                             key: 'delete',
@@ -254,17 +286,34 @@ const Favorites: React.FC = () => {
                             danger: true,
                             onClick: () => {
                               Modal.confirm({
-                                title: '确认删除',
-                                content: `确定要删除收藏夹"${folder.name}"吗？`,
+                                title: '确认删除收藏夹',
+                                content: (
+                                  <div>
+                                    <p>确定要删除收藏夹 <strong>"{folder.name}"</strong> 吗？</p>
+                                    <p style={{ color: '#ff4d4f', marginBottom: 0 }}>
+                                      ⚠️ 警告：删除收藏夹将会永久移除该收藏夹及其内部的所有 {folder.papers.length} 篇论文，此操作无法撤销！
+                                    </p>
+                                  </div>
+                                ),
+                                okText: '确认删除',
+                                cancelText: '取消',
+                                okType: 'danger',
                                 onOk: () => handleDeleteFolder(folder)
                               });
                             }
                           }
                         ]
                       }}
-                      trigger={['click']}
                     >
-                      <Button type="text" icon={<MoreOutlined />} />
+                      <Button
+                        type="text"
+                        icon={<MoreOutlined />}
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                        }}
+                      />
                     </Dropdown>
                   )
                 ]}
@@ -315,19 +364,30 @@ const Favorites: React.FC = () => {
                           <Button
                             type="text"
                             icon={<SwapOutlined />}
-                            onClick={() => openMoveModal(paper)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openMoveModal(paper);
+                            }}
                             disabled={folders.length <= 1}
                           />
                         </Tooltip>,
                         <Popconfirm
                           key="remove"
                           title="确定要从收藏夹中移除这篇论文吗？"
-                          onConfirm={() => handleRemovePaper(paper.id)}
+                          onConfirm={() => {
+                            console.log('点击删除按钮，论文信息:', { id: paper.id, title: paper.title });
+                            handleRemovePaper(paper.id);
+                          }}
+                          placement="topRight"
+                          okText="确定"
+                          cancelText="取消"
                         >
                           <Button
                             type="text"
                             danger
                             icon={<DeleteOutlined />}
+                            disabled={!paper.id}
+                            onClick={(e) => e.stopPropagation()}
                           />
                         </Popconfirm>
                       ]}
@@ -498,7 +558,6 @@ const Favorites: React.FC = () => {
       {/* 移动论文模态框 */}
       <MovePaperModal
         visible={moveModalVisible}
-        paper={selectedPaper}
         currentFolderId={selectedFolder?.id || ''}
         folders={folders}
         onMove={handleMovePaper}

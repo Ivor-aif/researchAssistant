@@ -69,8 +69,14 @@ export const getFavoritePapers = (): Paper[] => {
     const folders = getFavoriteFolders();
     const allPapers: Paper[] = [];
     folders.forEach(folder => {
-      allPapers.push(...folder.papers);
+      if (folder.papers) {
+        // 过滤掉无效的论文对象
+        const validPapers = folder.papers.filter(paper => paper && paper.id);
+        allPapers.push(...validPapers);
+      }
     });
+    
+    console.log('获取到的收藏论文:', allPapers.map(p => ({ id: p.id, title: p.title })));
     
     if (allPapers.length > 0) {
       return allPapers;
@@ -104,12 +110,21 @@ const migrateOldFavorites = (papers: Paper[]): void => {
     const defaultFolder = folders.find(f => f.id === DEFAULT_FOLDER_ID);
     
     if (defaultFolder && papers.length > 0) {
-      defaultFolder.papers = papers;
+      // 确保每个论文对象都有有效的ID
+      const validPapers = papers.filter(paper => paper && paper.id).map(paper => ({
+        ...paper,
+        id: paper.id || `paper_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        isFavorite: true
+      }));
+      
+      console.log('迁移论文数据:', validPapers.map(p => ({ id: p.id, title: p.title })));
+      
+      defaultFolder.papers = validPapers;
       defaultFolder.updatedAt = Date.now();
       localStorage.setItem(FAVORITE_FOLDERS_KEY, JSON.stringify(folders));
       // 清除旧数据
       localStorage.removeItem(FAVORITE_PAPERS_KEY);
-      console.log('已迁移旧版本收藏数据到新系统');
+      console.log('已迁移旧版本收藏数据到新系统，有效论文数量:', validPapers.length);
     }
   } catch (error) {
     console.error('迁移收藏数据失败:', error);
@@ -197,6 +212,8 @@ export const addToFavorites = (paper: Paper, folderId: string = DEFAULT_FOLDER_I
  */
 export const removeFromFavorites = (paperId: string, folderId?: string): boolean => {
   try {
+    console.log('removeFromFavorites 调用参数:', { paperId, folderId });
+    
     // 检查paperId是否有效
     if (!paperId) {
       console.error('移除收藏失败: 无效的论文ID');
@@ -205,6 +222,8 @@ export const removeFromFavorites = (paperId: string, folderId?: string): boolean
     }
     
     const folders = getFavoriteFolders();
+    console.log('当前收藏夹数据:', folders);
+    
     let removed = false;
     let removedFromFolder = '';
     
@@ -212,17 +231,29 @@ export const removeFromFavorites = (paperId: string, folderId?: string): boolean
       // 从指定收藏夹移除
       const targetFolder = folders.find(f => f.id === folderId);
       if (!targetFolder) {
+        console.error('收藏夹不存在:', folderId);
         message.error('收藏夹不存在');
         return false;
       }
       
+      console.log('目标收藏夹:', targetFolder.name, '论文数量:', targetFolder.papers.length);
+      console.log('收藏夹中的论文ID列表:', targetFolder.papers.map(p => ({ id: p?.id, title: p?.title })));
+      
       const originalLength = targetFolder.papers.length;
+      const paperToRemove = targetFolder.papers.find(paper => paper && paper.id === paperId);
+      console.log('要移除的论文:', paperToRemove);
+      
       targetFolder.papers = targetFolder.papers.filter(paper => paper && paper.id !== paperId);
+      
+      console.log('移除后论文数量:', targetFolder.papers.length);
       
       if (targetFolder.papers.length < originalLength) {
         targetFolder.updatedAt = Date.now();
         removed = true;
         removedFromFolder = targetFolder.name;
+        console.log('成功移除论文');
+      } else {
+        console.log('未找到要移除的论文');
       }
     } else {
       // 从所有收藏夹中移除
@@ -403,15 +434,16 @@ export const deleteFavoriteFolder = (folderId: string): boolean => {
       return false;
     }
     
-    if (folder.papers.length > 0) {
-      message.error('请先清空收藏夹中的论文再删除');
-      return false;
-    }
-    
+    // 直接删除收藏夹，包括其中的所有论文
     const updatedFolders = folders.filter(f => f.id !== folderId);
     localStorage.setItem(FAVORITE_FOLDERS_KEY, JSON.stringify(updatedFolders));
     
-    message.success(`收藏夹"${folder.name}"删除成功`);
+    const paperCount = folder.papers.length;
+    if (paperCount > 0) {
+      message.success(`收藏夹"${folder.name}"及其中的 ${paperCount} 篇论文已删除`);
+    } else {
+      message.success(`收藏夹"${folder.name}"删除成功`);
+    }
     return true;
   } catch (error) {
     console.error('删除收藏夹失败:', error);
