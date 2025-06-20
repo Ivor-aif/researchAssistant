@@ -258,73 +258,37 @@ const Favorites: React.FC = () => {
             renderItem={(folder) => (
               <List.Item
                 className={`folder-item ${selectedFolder?.id === folder.id ? 'active' : ''}`}
-                onClick={() => setSelectedFolder(folder)}
-                actions={[
-                  !folder.isDefault && (
-                    <Dropdown
-                      placement="bottomRight"
-                      trigger={['click']}
-                      menu={{
-                        items: [
-                          {
-                            key: 'edit',
-                            label: '编辑',
-                            icon: <EditOutlined />,
-                            onClick: () => {
-                              setEditingFolder(folder);
-                              editForm.setFieldsValue({
-                                name: folder.name,
-                                description: folder.description
-                              });
-                              setEditModalVisible(true);
-                            }
-                          },
-                          {
-                            key: 'delete',
-                            label: '删除',
-                            icon: <DeleteOutlined />,
-                            danger: true,
-                            onClick: () => {
-                              Modal.confirm({
-                                title: '确认删除收藏夹',
-                                content: (
-                                  <div>
-                                    <p>确定要删除收藏夹 <strong>"{folder.name}"</strong> 吗？</p>
-                                    <p style={{ color: '#ff4d4f', marginBottom: 0 }}>
-                                      ⚠️ 警告：删除收藏夹将会永久移除该收藏夹及其内部的所有 {folder.papers.length} 篇论文，此操作无法撤销！
-                                    </p>
-                                  </div>
-                                ),
-                                okText: '确认删除',
-                                cancelText: '取消',
-                                okType: 'danger',
-                                onOk: () => handleDeleteFolder(folder)
-                              });
-                            }
-                          }
-                        ]
-                      }}
-                    >
-                      <Button
-                        type="text"
-                        icon={<MoreOutlined />}
-                        size="small"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          e.preventDefault();
-                        }}
-                      />
-                    </Dropdown>
-                  )
-                ]}
+                onClick={() => {
+                  console.log('List item clicked - selecting folder:', folder.name);
+                  setSelectedFolder(folder);
+                }}
               >
                 <List.Item.Meta
                   avatar={<FolderOutlined />}
                   title={
-                    <Space>
-                      {folder.name}
-                      {folder.isDefault && <Tag color="orange">默认</Tag>}
-                    </Space>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                      <Space>
+                        {folder.name}
+                        {folder.isDefault && <Tag color="orange">默认</Tag>}
+                      </Space>
+                      {!folder.isDefault && (
+                        <Button
+                          type="text"
+                          icon={<MoreOutlined />}
+                          size="small"
+                          onClick={(e) => {
+                            console.log('Edit button clicked - opening edit modal');
+                            e.stopPropagation();
+                            setEditingFolder(folder);
+                            editForm.setFieldsValue({
+                              name: folder.name,
+                              description: folder.description
+                            });
+                            setEditModalVisible(true);
+                          }}
+                        />
+                      )}
+                    </div>
                   }
                   description={
                     <Space>
@@ -550,6 +514,44 @@ const Favorites: React.FC = () => {
               }}>
                 取消
               </Button>
+              {editingFolder && (
+                <Button 
+                  danger 
+                  icon={<DeleteOutlined />}
+                  onClick={() => {
+                    console.log('Delete button clicked in edit modal');
+                    Modal.confirm({
+                      title: '确认删除收藏夹',
+                      content: (
+                        <div>
+                          <p>确定要删除收藏夹 <strong>"{editingFolder.name}"</strong> 吗？</p>
+                          <p style={{ color: '#ff4d4f', marginBottom: 0 }}>
+                            ⚠️ 警告：删除收藏夹将会永久移除该收藏夹及其内部的所有 {editingFolder.papers.length} 篇论文，此操作无法撤销！
+                          </p>
+                        </div>
+                      ),
+                      okText: '确认删除',
+                      cancelText: '取消',
+                      okType: 'danger',
+                      onOk: async () => {
+                        console.log('开始删除收藏夹:', editingFolder.name, editingFolder.id);
+                        try {
+                          await handleDeleteFolder(editingFolder);
+                          console.log('删除成功');
+                          setEditModalVisible(false);
+                          setEditingFolder(null);
+                          editForm.resetFields();
+                          loadFolders();
+                        } catch (error) {
+                          console.error('删除失败:', error);
+                        }
+                      }
+                    });
+                  }}
+                >
+                  删除
+                </Button>
+              )}
             </Space>
           </Form.Item>
         </Form>
