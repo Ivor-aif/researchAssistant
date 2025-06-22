@@ -15,7 +15,8 @@ import {
   BellOutlined,
   GithubOutlined,
   GitlabOutlined,
-  HeartOutlined
+  HeartOutlined,
+  ApiOutlined
 } from '@ant-design/icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { getUnreadCount } from '../../services/messageService';
@@ -182,6 +183,11 @@ const OptimizedMainLayout: React.FC = () => {
       key: 'report',
       icon: <FileTextOutlined />,
       label: <Link to="/report">报告生成</Link>
+    },
+    {
+      key: 'ai-config',
+      icon: <ApiOutlined />,
+      label: <Link to="/ai-config">AI配置</Link>
     },
     {
       key: 'auth',

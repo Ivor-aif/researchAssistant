@@ -360,7 +360,7 @@ export const aiApi = {
     }
   },
   
-  // 获取API密钥
+  // 获取API密钥（旧版本，保持兼容性）
   getApiKeys: async (): Promise<ApiKeys> => {
     console.log('🔑 调用获取AI API密钥API');
     try {
@@ -371,7 +371,7 @@ export const aiApi = {
     }
   },
   
-  // 更新API密钥
+  // 更新API密钥（旧版本，保持兼容性）
   updateApiKeys: async (apiKeys: Partial<ApiKeys>): Promise<ApiKeys> => {
     console.log('🔄 调用更新AI API密钥API');
     try {
@@ -379,6 +379,124 @@ export const aiApi = {
       return response.data;
     } catch (error: unknown) {
       return handleApiError(error, '更新AI API密钥API');
+    }
+  },
+  
+  // AI配置管理（新版本）
+  configs: {
+    // 获取用户所有AI配置
+    getUserConfigs: async () => {
+      console.log('🔧 调用获取用户AI配置API');
+      try {
+        const response = await apiClient.get('/api/ai-config');
+        return response.data;
+      } catch (error: unknown) {
+        return handleApiError(error, '获取用户AI配置API');
+      }
+    },
+    
+    // 获取指定AI配置
+    getConfig: async (configId: number) => {
+      console.log('🔧 调用获取AI配置API，ID:', configId);
+      try {
+        const response = await apiClient.get(`/api/ai-config/${configId}`);
+        return response.data;
+      } catch (error: unknown) {
+        return handleApiError(error, '获取AI配置API');
+      }
+    },
+    
+    // 创建AI配置
+    createConfig: async (data: any) => {
+      console.log('➕ 调用创建AI配置API');
+      try {
+        const response = await apiClient.post('/api/ai-config', data);
+        return response.data;
+      } catch (error: unknown) {
+        return handleApiError(error, '创建AI配置API');
+      }
+    },
+    
+    // 更新AI配置
+    updateConfig: async (configId: number, data: any) => {
+      console.log('✏️ 调用更新AI配置API，ID:', configId);
+      try {
+        const response = await apiClient.put(`/api/ai-config/${configId}`, data);
+        return response.data;
+      } catch (error: unknown) {
+        return handleApiError(error, '更新AI配置API');
+      }
+    },
+    
+    // 删除AI配置
+    deleteConfig: async (configId: number) => {
+      console.log('🗑️ 调用删除AI配置API，ID:', configId);
+      try {
+        const response = await apiClient.delete(`/api/ai-config/${configId}`);
+        return response.data;
+      } catch (error: unknown) {
+        return handleApiError(error, '删除AI配置API');
+      }
+    },
+    
+    // 设置主配置
+    setPrimaryConfig: async (configId: number) => {
+      console.log('⭐ 调用设置主AI配置API，ID:', configId);
+      try {
+        const response = await apiClient.post(`/api/ai-config/${configId}/set-primary`);
+        return response.data;
+      } catch (error: unknown) {
+        return handleApiError(error, '设置主AI配置API');
+      }
+    },
+    
+    // 测试AI配置
+    testConfig: async (configId: number, prompt: string) => {
+      console.log('🧪 调用测试AI配置API，ID:', configId);
+      try {
+        const response = await apiClient.post(`/api/ai-config/${configId}/test`, { prompt });
+        return response.data;
+      } catch (error: unknown) {
+        return handleApiError(error, '测试AI配置API');
+      }
+    },
+    
+    // 生成AI提示词
+    generatePrompt: async (data: {
+      keywords: string[];
+      task_type: string;
+      context?: string;
+      config_id?: number;
+    }) => {
+      console.log('🎯 调用生成AI提示词API');
+      try {
+        const response = await apiClient.post('/api/ai-config/generate-prompt', data);
+        return response.data;
+      } catch (error: unknown) {
+        return handleApiError(error, '生成AI提示词API');
+      }
+    },
+    
+    // 获取适用于特定任务的AI配置
+    getConfigsForTask: async (taskType: string) => {
+      console.log('🎯 调用获取任务AI配置API，任务类型:', taskType);
+      try {
+        const response = await apiClient.get(`/api/ai-config/for-task/${taskType}`);
+        return response.data;
+      } catch (error: unknown) {
+        return handleApiError(error, '获取任务AI配置API');
+      }
+    },
+    
+    // 获取主配置
+    getPrimaryConfig: async () => {
+      console.log('⭐ 调用获取主AI配置API');
+      try {
+        const response = await apiClient.get('/api/ai-config/primary');
+        return response.data;
+      } catch (error: unknown) {
+        return handleApiError(error, '获取主AI配置API');
+      }
     }
   }
 };
@@ -561,5 +679,8 @@ export const reportApi = {
     }
   }
 };
+
+// 导出apiClient供其他服务使用
+export { apiClient };
 
 // 所有API已经通过命名导出，不需要默认导出

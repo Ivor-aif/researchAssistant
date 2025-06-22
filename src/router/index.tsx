@@ -11,6 +11,7 @@ const InnovationAnalysis = lazy(() => import('../pages/InnovationAnalysis'));
 const ResearchProgress = lazy(() => import('../pages/ResearchProgress'));
 const PaperReproduction = lazy(() => import('../pages/PaperReproduction'));
 const Report = lazy(() => import('../pages/Report'));
+const AIConfig = lazy(() => import('../pages/AIConfig'));
 
 const router = createBrowserRouter([
   {
@@ -48,6 +49,10 @@ const router = createBrowserRouter([
       {
         path: 'report',
         element: <ProtectedRoute><Suspense fallback={<div>加载中...</div>}><Report /></Suspense></ProtectedRoute>
+      },
+      {
+        path: 'ai-config',
+        element: <ProtectedRoute><Suspense fallback={<div>加载中...</div>}><AIConfig /></Suspense></ProtectedRoute>
       }
     ]
   }

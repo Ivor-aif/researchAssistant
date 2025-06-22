@@ -1,4 +1,5 @@
-from sqlalchemy import Boolean, Column, Integer, String, DateTime, Text
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from ..database import Base
 
@@ -18,6 +19,9 @@ class User(Base):
     author_email = Column(String, nullable=True)  # 通讯作者邮箱
     author_website = Column(String, nullable=True)  # 个人网站链接
     
-    # AI服务相关字段
+    # AI服务相关字段（保留兼容性）
     openai_api_key = Column(String, nullable=True)  # OpenAI API密钥
     other_ai_api_keys = Column(Text, nullable=True)  # 其他AI服务API密钥，存储为JSON字符串
+    
+    # 关系
+    ai_configs = relationship("AIAPIConfig", back_populates="user", cascade="all, delete-orphan")
