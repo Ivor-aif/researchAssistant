@@ -1,0 +1,8 @@
+{"user_id":"H3apSXtTKsDqaFcL","theme":"light","layout":"default","timezone":"Asia/Tokyo","config_json":null,"updated_at":"2025-12-09T02:27:15.392Z","_id":"dCtI5ZokG1IaaVdY"}
+{"user_id":"pAfZxHCu6orB6Deb","theme":"light","layout":"default","timezone":"Asia/Shanghai","config_json":null,"updated_at":"2025-12-09T02:28:35.624Z","_id":"zEqvlsteP4gPpTvb"}
+{"$$indexCreated":{"fieldName":"user_id","unique":true,"sparse":false}}
+{"user_id":"pAfZxHCu6orB6Deb","theme":"light","layout":"default","timezone":"Europe/London","config_json":null,"updated_at":"2025-12-09T02:42:47.787Z","_id":"zEqvlsteP4gPpTvb"}
+{"user_id":"pAfZxHCu6orB6Deb","theme":"light","layout":"default","timezone":"Europe/London","config_json":null,"updated_at":"2025-12-09T02:42:51.311Z","_id":"zEqvlsteP4gPpTvb"}
+{"user_id":"pAfZxHCu6orB6Deb","theme":"light","layout":"default","timezone":"UTC","config_json":null,"updated_at":"2025-12-09T02:43:03.512Z","_id":"zEqvlsteP4gPpTvb"}
+{"user_id":"pAfZxHCu6orB6Deb","theme":"light","layout":"default","timezone":"Asia/Shanghai","config_json":null,"updated_at":"2025-12-09T02:43:12.015Z","_id":"zEqvlsteP4gPpTvb"}
+{"user_id":"pAfZxHCu6orB6Deb","theme":"light","layout":"default","timezone":"Asia/Shanghai","config_json":"{\"sort_directions\":{\"field\":\"updated_at\",\"order\":\"desc\"}}","updated_at":"2025-12-09T02:47:48.028Z","_id":"zEqvlsteP4gPpTvb"}
