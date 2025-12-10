@@ -1,15 +1,8 @@
 import React, { useEffect, useState } from 'https://esm.sh/react@18'
 import { setTimezone } from '../time.js'
+import { api } from '../apiClient.js'
 const h = React.createElement
 
-async function api(path, { method = 'GET', body } = {}) {
-  const headers = { 'Content-Type': 'application/json' }
-  const t = localStorage.getItem('jwt')
-  if (t) headers['Authorization'] = `Bearer ${t}`
-  const resp = await fetch(`http://localhost:4000/api/v1${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined })
-  if (!resp.ok) throw new Error(await resp.text())
-  return resp.json()
-}
 
 export default function Settings() {
   const [tz, setTz] = useState('Asia/Shanghai')
@@ -21,6 +14,10 @@ export default function Settings() {
   const [modelPath, setModelPath] = useState('')
   const [paramsJson, setParamsJson] = useState('')
   const [msg, setMsg] = useState('')
+  const [sites, setSites] = useState([])
+  const [siteName, setSiteName] = useState('')
+  const [siteUrl, setSiteUrl] = useState('')
+  const [siteAuth, setSiteAuth] = useState('')
 
   async function load() {
     try {
@@ -28,6 +25,8 @@ export default function Settings() {
       setTz(s.timezone || 'Asia/Shanghai')
       const list = await api('/config/ai')
       setApis(list)
+      const ss = await api('/config/sites')
+      setSites(ss)
     } catch {}
   }
   useEffect(() => { load() }, [])
@@ -45,6 +44,22 @@ export default function Settings() {
   }
   async function testApi(name) {
     try { const r = await api('/config/ai/test', { method: 'POST', body: { apiName: name } }); setMsg(`测试 ${name}：${JSON.stringify(r)}`) } catch (e) { setMsg('测试失败：' + e.message) }
+  }
+
+  async function saveSite() {
+    try {
+      await api('/config/sites', { method: 'POST', body: { siteName, url: siteUrl, auth: siteAuth } })
+      setMsg('文献网站已保存')
+      setSiteName(''); setSiteUrl(''); setSiteAuth('')
+      const ss = await api('/config/sites'); setSites(ss)
+    } catch (e) { setMsg('网站保存失败：' + e.message) }
+  }
+
+  async function testSite(s) {
+    try {
+      const r = await api('/config/sites/test', { method: 'POST', body: { siteId: s.id } })
+      setMsg(`测试 ${s.site_name}：${r.status}，响应时间 ${r.latency_ms}ms${r.message ? '，信息：' + r.message : ''}`)
+    } catch (e) { setMsg('测试失败：' + e.message) }
   }
 
   const tzOptions = ['Asia/Shanghai','UTC','Asia/Tokyo','Asia/Seoul','Europe/London','America/New_York']
@@ -78,6 +93,22 @@ export default function Settings() {
         ...apis.map(a => h('div', { key: a.api_name, style: { display: 'flex', justifyContent: 'space-between', padding: '6px 0' } },
           h('div', null, `${a.api_name} (${a.type})`),
           h('div', null, h('button', { onClick: () => testApi(a.api_name) }, '测试'))
+        ))
+      )
+    ),
+    h('div', { className: 'card' },
+      h('h3', null, '文献网站管理'),
+      h('div', { className: 'row' },
+        h('input', { placeholder: '网站名称（如 PubMed）', value: siteName, onChange: e => setSiteName(e.target.value) }),
+        h('input', { placeholder: '访问 URL', value: siteUrl, onChange: e => setSiteUrl(e.target.value) }),
+        h('input', { placeholder: '认证信息（可选）', value: siteAuth, onChange: e => setSiteAuth(e.target.value) }),
+        h('button', { onClick: saveSite }, '添加/更新网站')
+      ),
+      h('div', { style: { marginTop: 8 } },
+        h('div', { className: 'muted' }, '已保存的网站：'),
+        ...sites.map(s => h('div', { key: s.id, style: { display: 'flex', justifyContent: 'space-between', padding: '6px 0' } },
+          h('div', null, `${s.site_name} - ${s.url}`),
+          h('div', null, h('button', { onClick: () => testSite(s) }, '测试访问'))
         ))
       )
     ),

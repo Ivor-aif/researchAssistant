@@ -1,3 +1,0 @@
-{"user_id":"H3apSXtTKsDqaFcL","type":"cloud","url_enc":"iHo/6s58mOoNDwKoL+45nH+LXLf7B1/NTQnGq77vRW8i6EXYko6fH74gZVbvspc=","api_key_enc":"+7BL6BtxAQGTdpkyiUqSv4JT62x/XajsU/AymUU=","model_path":null,"params_json":"{}","created_at":"2025-12-09T01:57:35.647Z","updated_at":"2025-12-09T02:24:00.048Z","_id":"kdXWCmSV50uUWazS"}
-{"$$indexCreated":{"fieldName":"user_id","unique":true,"sparse":false}}
-{"$$indexCreated":{"fieldName":"api_name","unique":false,"sparse":false}}

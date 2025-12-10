@@ -1,0 +1,50 @@
+# OS
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Icon?
+
+# Env
+.env
+.env.*
+.env.local
+*.env
+
+# Dependencies
+node_modules/
+vendor/
+
+# Build outputs
+dist/
+build/
+coverage/
+.next/
+out/
+.cache/
+tmp/
+temp/
+
+# Editors/IDE
+.idea/
+.vscode/
+*.code-workspace
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Project data (NeDB)
+server/data/
+server/server/data/
+**/*.db
+**/*.sqlite
+
+# Keys & certs
+**/*.pem
+**/*.key
+**/*.crt
+
+# Trae/preview artifacts
+.trae/
