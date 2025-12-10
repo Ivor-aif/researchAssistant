@@ -1,4 +1,4 @@
-export const apiBase = 'http://localhost:4000/api/v1'
+export const apiBase = (typeof window !== 'undefined' && (window.__API_BASE__ || `${window.location.origin}/api/v1`)) || 'http://localhost:4000/api/v1'
 
 function getToken() {
   return localStorage.getItem('jwt')
@@ -8,9 +8,18 @@ export async function api(path, { method = 'GET', body } = {}) {
   const headers = { 'Content-Type': 'application/json' }
   const token = getToken()
   if (token) headers['Authorization'] = `Bearer ${token}`
-  const resp = await fetch(`${apiBase}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined })
-  if (!resp.ok) throw new Error(await resp.text())
-  return resp.json()
+  try {
+    const resp = await fetch(`${apiBase}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined })
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => '')
+      console.error('API response error', { method, url: `${apiBase}${path}`, status: resp.status, body: text })
+      throw new Error(text || `HTTP ${resp.status}`)
+    }
+    return resp.json()
+  } catch (e) {
+    console.error('API request failed', { method, url: `${apiBase}${path}`, error: String(e && e.message || e) })
+    throw e
+  }
 }
 
 export async function login(username, password) {

@@ -47,6 +47,10 @@ app.get('/api/v1/meta', (req, res) => {
       'GET  /api/v1/config/ai/:apiName',
       'POST /api/v1/config/ai',
       'POST /api/v1/config/ai/test',
+      'POST /api/v1/config/ai/prompt',
+      'GET  /api/v1/config/sites',
+      'POST /api/v1/config/sites',
+      'POST /api/v1/config/sites/test',
       'GET  /api/v1/config/settings',
       'POST /api/v1/config/settings'
     ]

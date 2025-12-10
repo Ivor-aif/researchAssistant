@@ -1,13 +1,13 @@
+import { api } from './apiClient.js'
 let currentTimezone = 'Asia/Shanghai'
 
 export async function loadTimezone() {
   try {
-    const resp = await fetch('http://localhost:4000/api/v1/config/settings', { headers: tokenHeader() })
-    if (resp.ok) {
-      const data = await resp.json()
-      currentTimezone = data.timezone || 'Asia/Shanghai'
-    }
-  } catch {}
+    const data = await api('/config/settings')
+    currentTimezone = (data && data.timezone) ? data.timezone : 'Asia/Shanghai'
+  } catch (e) {
+    try { console.error('loadTimezone failed', e && e.message ? e.message : e) } catch {}
+  }
 }
 
 export function setTimezone(tz) {
@@ -25,7 +25,4 @@ export function formatDate(iso) {
   }
 }
 
-function tokenHeader() {
-  const t = localStorage.getItem('jwt')
-  return t ? { Authorization: `Bearer ${t}` } : {}
-}
+function tokenHeader() { return {} }

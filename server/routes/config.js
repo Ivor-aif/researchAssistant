@@ -3,7 +3,9 @@ import { body, param, validationResult } from 'express-validator'
 import db from '../db.js'
 import { encrypt, decrypt } from '../utils/crypto.js'
 import fs from 'fs'
+import http from 'http'
 import https from 'https'
+import { URL } from 'url'
 
 const router = express.Router()
 
@@ -91,6 +93,120 @@ router.post('/ai/test', body('apiName').isString().isLength({ min: 3, max: 32 })
     res.status(200).json({ status: 'error', latency_ms: ms, message: e.message })
   }
 })
+
+router.post('/ai/prompt',
+  body('apiName').isString().isLength({ min: 3, max: 32 }).matches(/^[A-Za-z0-9_-]+$/),
+  body('prompt').isString().isLength({ min: 1, max: 10000 }),
+  async (req, res) => {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() })
+    const cfg = await db.aiConfigs.findOne({ user_id: req.user.id, api_name: req.body.apiName })
+    if (!cfg) return res.status(404).json({ error: 'No config' })
+    const start = performance.now()
+    try {
+      if (cfg.type === 'cloud') {
+        const urlStr = decrypt(cfg.url_enc)
+        const key = decrypt(cfg.api_key_enc)
+        if (!urlStr) return res.status(400).json({ error: 'Missing URL' })
+        let u
+        try { u = new URL(urlStr) } catch { return res.status(400).json({ error: 'Invalid URL' }) }
+        const proto = u.protocol === 'https:' ? https : http
+        await new Promise((resolve, reject) => {
+          const reqOpt = { method: 'POST', headers: { 'Content-Type': 'application/json' }, timeout: 7000 }
+          if (key) reqOpt.headers['Authorization'] = `Bearer ${key}`
+          const r = proto.request(urlStr, reqOpt, (resp) => {
+            resp.on('data', () => {})
+            resp.on('end', resolve)
+          })
+          r.on('timeout', () => { r.destroy(new Error('Timeout')) })
+          r.on('error', reject)
+          r.end(JSON.stringify({ prompt: req.body.prompt }))
+        })
+      }
+      const ms = Math.round(performance.now() - start)
+      res.json({ status: 'ok', latency_ms: ms })
+    } catch (e) {
+      const ms = Math.round(performance.now() - start)
+      res.status(200).json({ status: 'error', latency_ms: ms, message: e.message })
+    }
+  }
+)
+
+// -------- Literature sites management --------
+router.get('/sites', async (req, res) => {
+  const rows = await db.literatureSites.find({ user_id: req.user.id }).sort({ updated_at: -1 })
+  res.json(rows.map(r => ({ id: r._id, site_name: r.site_name, url: r.url, auth_redacted: !!r.auth_enc, updated_at: r.updated_at })))
+})
+
+router.post(
+  '/sites',
+  body('siteName').isString().isLength({ min: 2, max: 64 }).trim(),
+  body('url').isString().isLength({ min: 4, max: 2000 }).trim(),
+  body('auth').optional().isString().isLength({ min: 1, max: 4096 }),
+  async (req, res) => {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() })
+    const { siteName, url, auth } = req.body
+    const now = new Date().toISOString()
+    const existing = await db.literatureSites.findOne({ user_id: req.user.id, site_name: siteName })
+    if (existing) {
+      await db.literatureSites.update({ _id: existing._id }, { $set: { url, auth_enc: encrypt(auth || null), updated_at: now } })
+      return res.json({ ok: true, id: existing._id })
+    }
+    const clash = await db.literatureSites.findOne({ user_id: req.user.id, site_name: siteName })
+    if (clash) return res.status(409).json({ error: 'siteName already exists' })
+    const doc = await db.literatureSites.insert({ user_id: req.user.id, site_name: siteName, url, auth_enc: encrypt(auth || null), created_at: now, updated_at: now })
+    res.json({ ok: true, id: doc._id })
+  }
+)
+
+router.post(
+  '/sites/test',
+  body('siteId').optional().isString().isLength({ min: 1 }),
+  body('siteName').optional().isString().isLength({ min: 2, max: 64 }).trim(),
+  async (req, res) => {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() })
+    const { siteId, siteName } = req.body
+    let site = null
+    if (siteId) site = await db.literatureSites.findOne({ _id: siteId })
+    if (!site && siteName) site = await db.literatureSites.findOne({ user_id: req.user.id, site_name: siteName })
+    if (!site || site.user_id !== req.user.id) return res.status(404).json({ error: 'Site not found' })
+    const urlStr = site.url
+    let u
+    try { u = new URL(urlStr) } catch { return res.status(400).json({ error: 'Invalid URL' }) }
+    const proto = u.protocol === 'https:' ? https : http
+    const start = performance.now()
+    const timeoutMs = 5000
+    const maxRetries = 2
+    async function attempt() {
+      return new Promise((resolve, reject) => {
+        const reqOpt = { method: 'GET', timeout: timeoutMs, headers: {} }
+        const key = decrypt(site.auth_enc)
+        if (key) reqOpt.headers['Authorization'] = key
+        const r = proto.request(urlStr, reqOpt, (resp) => {
+          resp.on('data', () => {})
+          resp.on('end', resolve)
+        })
+        r.on('timeout', () => { r.destroy(new Error('Timeout')) })
+        r.on('error', reject)
+        r.end()
+      })
+    }
+    try {
+      let lastErr = null
+      for (let i = 0; i <= maxRetries; i++) {
+        try { await attempt(); lastErr = null; break } catch (e) { lastErr = e; await new Promise(r => setTimeout(r, 300 * (i + 1))) }
+      }
+      const ms = Math.round(performance.now() - start)
+      if (lastErr) return res.status(200).json({ status: 'error', latency_ms: ms, message: lastErr.message })
+      return res.json({ status: 'ok', latency_ms: ms })
+    } catch (e) {
+      const ms = Math.round(performance.now() - start)
+      return res.status(200).json({ status: 'error', latency_ms: ms, message: e.message })
+    }
+  }
+)
 
 router.get('/settings', async (req, res) => {
   const row = await db.userSettings.findOne({ user_id: req.user.id })

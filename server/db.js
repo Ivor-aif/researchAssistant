@@ -10,6 +10,7 @@ export const projects = Datastore.create({ filename: path.join(dataDir, 'project
 export const directions = Datastore.create({ filename: path.join(dataDir, 'directions.db'), autoload: true })
 export const aiConfigs = Datastore.create({ filename: path.join(dataDir, 'ai_configs.db'), autoload: true })
 export const userSettings = Datastore.create({ filename: path.join(dataDir, 'user_settings.db'), autoload: true })
+export const literatureSites = Datastore.create({ filename: path.join(dataDir, 'literature_sites.db'), autoload: true })
 
 export async function initSchema() {
   await users.ensureIndex({ fieldName: 'username', unique: true })
@@ -18,7 +19,9 @@ export async function initSchema() {
   await aiConfigs.ensureIndex({ fieldName: 'user_id', unique: false })
   await aiConfigs.ensureIndex({ fieldName: 'api_name', unique: false })
   await userSettings.ensureIndex({ fieldName: 'user_id', unique: true })
+  await literatureSites.ensureIndex({ fieldName: 'user_id', unique: false })
+  await literatureSites.ensureIndex({ fieldName: 'site_name', unique: false })
 }
 
-const db = { users, projects, directions, aiConfigs, userSettings }
+const db = { users, projects, directions, aiConfigs, userSettings, literatureSites }
 export default db

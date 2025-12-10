@@ -36,7 +36,20 @@ export default function Settings() {
   }
   async function saveApi() {
     try {
-      await api('/config/ai', { method: 'POST', body: { apiName, type, url, apiKey, modelPath, paramsJson } })
+      const payload = { apiName: (apiName || '').trim(), type }
+      if (!payload.apiName) { setMsg('请填写API名称'); return }
+      if (type === 'cloud') {
+        const u = (url || '').trim()
+        if (!u) { setMsg('云端API需填写URL'); return }
+        payload.url = u
+        const k = (apiKey || '').trim(); if (k) payload.apiKey = k
+      } else {
+        const mp = (modelPath || '').trim()
+        if (!mp) { setMsg('本地模型需填写模型路径'); return }
+        payload.modelPath = mp
+        const pj = (paramsJson || '').trim(); if (pj) payload.paramsJson = pj
+      }
+      await api('/config/ai', { method: 'POST', body: payload })
       setMsg('API配置已保存')
       setApiName(''); setUrl(''); setApiKey(''); setModelPath(''); setParamsJson('');
       const list = await api('/config/ai'); setApis(list)
@@ -48,7 +61,14 @@ export default function Settings() {
 
   async function saveSite() {
     try {
-      await api('/config/sites', { method: 'POST', body: { siteName, url: siteUrl, auth: siteAuth } })
+      const name = (siteName || '').trim()
+      const url = (siteUrl || '').trim()
+      const auth = (siteAuth || '').trim()
+      if (!name) { setMsg('请填写网站名称'); return }
+      if (!url) { setMsg('请填写访问URL'); return }
+      const payload = { siteName: name, url }
+      if (auth) payload.auth = auth
+      await api('/config/sites', { method: 'POST', body: payload })
       setMsg('文献网站已保存')
       setSiteName(''); setSiteUrl(''); setSiteAuth('')
       const ss = await api('/config/sites'); setSites(ss)
