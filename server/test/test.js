@@ -85,6 +85,15 @@ async function run() {
     await api('/config/ai/test', { method: 'POST', body: { apiName: 'TestAPI' }, token }).catch(e => ({ _error: e.message }))
     log('AI配置保存与测试调用', true, '测试返回错误状态符合预期')
 
+    // prompt call with timeout behavior
+    const t0 = Date.now()
+    const pr = await timeoutFetch(`${base}/config/ai/prompt`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ apiName: 'TestAPI', prompt: 'hello' }) })
+    const t1 = Date.now()
+    assert(pr.ok)
+    const prj = await pr.json()
+    assert(prj && (prj.status === 'ok' || prj.status === 'error'))
+    log('Prompt调用响应', true, `耗时 ${t1 - t0}ms`)
+
     // Sites & test
     // invalid: empty auth should 400
     const badSiteResp = await timeoutFetch(`${base}/config/sites`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ siteName: 'BadSite', url: 'https://example.invalid', auth: '' }) })

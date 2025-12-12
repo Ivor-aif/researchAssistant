@@ -4,12 +4,14 @@ function getToken() {
   return localStorage.getItem('jwt')
 }
 
-export async function api(path, { method = 'GET', body } = {}) {
+export async function api(path, { method = 'GET', body, timeoutMs = 10000 } = {}) {
   const headers = { 'Content-Type': 'application/json' }
   const token = getToken()
   if (token) headers['Authorization'] = `Bearer ${token}`
+  const controller = new AbortController()
+  const to = setTimeout(() => { try { controller.abort() } catch {} }, timeoutMs)
   try {
-    const resp = await fetch(`${apiBase}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined })
+    const resp = await fetch(`${apiBase}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined, signal: controller.signal })
     if (!resp.ok) {
       const text = await resp.text().catch(() => '')
       console.error('API response error', { method, url: `${apiBase}${path}`, status: resp.status, body: text })
@@ -20,6 +22,7 @@ export async function api(path, { method = 'GET', body } = {}) {
     console.error('API request failed', { method, url: `${apiBase}${path}`, error: String(e && e.message || e) })
     throw e
   }
+  finally { clearTimeout(to) }
 }
 
 export async function login(username, password) {

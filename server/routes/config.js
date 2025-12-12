@@ -97,6 +97,8 @@ router.post('/ai/test', body('apiName').isString().isLength({ min: 3, max: 32 })
 router.post('/ai/prompt',
   body('apiName').isString().isLength({ min: 3, max: 32 }).matches(/^[A-Za-z0-9_-]+$/),
   body('prompt').isString().isLength({ min: 1, max: 10000 }),
+  body('debug').optional().isBoolean(),
+  body('requestId').optional().isString(),
   async (req, res) => {
     const errors = validationResult(req)
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() })
@@ -105,29 +107,72 @@ router.post('/ai/prompt',
     const start = performance.now()
     try {
       if (cfg.type === 'cloud') {
-        const urlStr = decrypt(cfg.url_enc)
+        const urlStrRaw = decrypt(cfg.url_enc)
         const key = decrypt(cfg.api_key_enc)
-        if (!urlStr) return res.status(400).json({ error: 'Missing URL' })
+        if (!urlStrRaw) return res.status(400).json({ error: 'Missing URL' })
+        
+        let targetUrl = urlStrRaw
+        let payload = { prompt: req.body.prompt }
+        const params = cfg.params_json ? JSON.parse(cfg.params_json) : {}
+        const model = params.model || 'deepseek-chat'
+        
+        // Intelligent adaptation for OpenAI-compatible APIs (DeepSeek, OpenAI, etc)
+        const isChatPath = /\/chat\/completions$/.test(targetUrl)
+        const isKnownBase = /api\.(deepseek|openai)\.com\/?$/.test(targetUrl)
+        
+        if (isChatPath || isKnownBase) {
+           if (isKnownBase && !targetUrl.includes('/v1') && !targetUrl.includes('/chat')) {
+             // auto-append standard endpoint
+             targetUrl = targetUrl.replace(/\/$/, '') + '/chat/completions' 
+           }
+           payload = {
+             model: model,
+             messages: [
+               { role: 'user', content: req.body.prompt }
+             ]
+           }
+        }
+
         let u
-        try { u = new URL(urlStr) } catch { return res.status(400).json({ error: 'Invalid URL' }) }
+        try { u = new URL(targetUrl) } catch { return res.status(400).json({ error: 'Invalid URL' }) }
         const proto = u.protocol === 'https:' ? https : http
+        const debug = !!req.body.debug
+        let extStatus = null
+        let extBody = ''
         await new Promise((resolve, reject) => {
-          const reqOpt = { method: 'POST', headers: { 'Content-Type': 'application/json' }, timeout: 7000 }
+          const reqOpt = { method: 'POST', headers: { 'Content-Type': 'application/json' } }
           if (key) reqOpt.headers['Authorization'] = `Bearer ${key}`
-          const r = proto.request(urlStr, reqOpt, (resp) => {
-            resp.on('data', () => {})
+          const r = proto.request(targetUrl, reqOpt, (resp) => {
+            extStatus = resp.statusCode || null
+            resp.on('data', (chunk) => { extBody += chunk.toString() })
             resp.on('end', resolve)
           })
-          r.on('timeout', () => { r.destroy(new Error('Timeout')) })
+          r.setTimeout(90000, () => { r.destroy(new Error('Timeout')) })
           r.on('error', reject)
-          r.end(JSON.stringify({ prompt: req.body.prompt }))
+          try { r.end(JSON.stringify(payload)) } catch (e) { reject(e) }
         })
+        
+        const ms = Math.round(performance.now() - start)
+        const dbg = debug ? { 
+          requestId: req.body.requestId || null, 
+          url: targetUrl, 
+          headersSent: { Authorization: key ? 'Bearer ****' : undefined, 'Content-Type': 'application/json' }, 
+          statusCode: extStatus, 
+          latency_ms: ms, 
+          body_sample: extBody.slice(0, 512), 
+          payload_preview: JSON.stringify(payload).slice(0, 200) 
+        } : undefined
+
+        if (debug && extStatus >= 400) console.warn('[PromptWarning]', { requestId: req.body.requestId, status: extStatus, url: targetUrl })
+        
+        return res.json({ status: 'ok', latency_ms: ms, answer: extBody, debug: dbg })
       }
       const ms = Math.round(performance.now() - start)
       res.json({ status: 'ok', latency_ms: ms })
     } catch (e) {
       const ms = Math.round(performance.now() - start)
-      res.status(200).json({ status: 'error', latency_ms: ms, message: e.message })
+      const dbg = !!req.body.debug ? { requestId: req.body.requestId || null, error: e.message, stack: e.stack || null } : undefined
+      res.status(200).json({ status: 'error', latency_ms: ms, message: e.message, debug: dbg })
     }
   }
 )
