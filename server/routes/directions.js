@@ -44,6 +44,8 @@ router.put(
   body('name').optional().isString().isLength({ min: 1, max: 128 }).trim(),
   body('description').optional().isString().isLength({ max: 2000 }),
   body('status').optional().isString().isIn(['未生成综述','已生成综述']),
+  body('review_md').optional().isString().isLength({ max: 500000 }),
+  body('citation_stats').optional().isObject(),
   async (req, res) => {
     const errors = validationResult(req)
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() })
@@ -52,11 +54,29 @@ router.put(
     if (!dir) return res.status(404).json({ error: 'Direction not found' })
     const proj = await db.projects.findOne({ _id: dir.project_id })
     if (!proj || proj.user_id !== req.user.id) return res.status(404).json({ error: 'Direction not found' })
-    const { name, description, status } = req.body
+    const { name, description, status, review_md, citation_stats } = req.body
     const now = new Date().toISOString()
-    await db.directions.update({ _id: id }, { $set: { name: name ?? dir.name, description: description ?? dir.description, status: status ?? dir.status ?? '未生成综述', updated_at: now } })
+    const nextSet = { 
+      name: name ?? dir.name, 
+      description: description ?? dir.description, 
+      status: status ?? dir.status ?? '未生成综述', 
+      updated_at: now 
+    }
+    if (typeof review_md === 'string') nextSet.review_md = review_md
+    if (citation_stats && typeof citation_stats === 'object') nextSet.citation_stats = citation_stats
+    await db.directions.update({ _id: id }, { $set: nextSet })
     const row = await db.directions.findOne({ _id: id })
-    res.json({ id: row._id, project_id: row.project_id, name: row.name, description: row.description, status: row.status || '未生成综述', created_at: row.created_at, updated_at: row.updated_at })
+    res.json({ 
+      id: row._id, 
+      project_id: row.project_id, 
+      name: row.name, 
+      description: row.description, 
+      status: row.status || '未生成综述', 
+      review_md: row.review_md || null,
+      citation_stats: row.citation_stats || null,
+      created_at: row.created_at, 
+      updated_at: row.updated_at 
+    })
   }
 )
 

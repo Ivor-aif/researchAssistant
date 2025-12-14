@@ -68,9 +68,10 @@ app.use((err, req, res, next) => {
 })
 
 const port = Number(process.env.PORT || 4000)
-app.listen(port, () => {
+const server = app.listen(port, () => {
   console.log(`API server listening on http://localhost:${port}`)
 })
+server.setTimeout(600000) // 10 minutes timeout to allow long AI generation
 
 // Dev static serving for the front-end (keeps FE→BE separation at API boundary)
 app.use(express.static(path.resolve(process.cwd(), '..', 'web')))

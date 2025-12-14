@@ -1,4 +1,4 @@
-import React, { useState } from 'https://esm.sh/react@18'
+import React, { useState } from 'https://esm.sh/react@18?dev'
 import { login, register } from '../apiClient.js'
 const h = React.createElement
 

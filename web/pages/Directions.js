@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'https://esm.sh/react@18'
+import React, { useEffect, useState } from 'https://esm.sh/react@18?dev'
 import { api } from '../apiClient.js'
 import { formatDate } from '../time.js'
 const h = React.createElement

@@ -9,7 +9,7 @@ export async function api(path, { method = 'GET', body, timeoutMs = 10000 } = {}
   const token = getToken()
   if (token) headers['Authorization'] = `Bearer ${token}`
   const controller = new AbortController()
-  const to = setTimeout(() => { try { controller.abort() } catch {} }, timeoutMs)
+  const to = setTimeout(() => { try { controller.abort(new Error(`Request timed out after ${timeoutMs}ms`)) } catch {} }, timeoutMs)
   try {
     const resp = await fetch(`${apiBase}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined, signal: controller.signal })
     if (!resp.ok) {

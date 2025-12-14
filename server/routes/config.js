@@ -147,7 +147,7 @@ router.post('/ai/prompt',
             resp.on('data', (chunk) => { extBody += chunk.toString() })
             resp.on('end', resolve)
           })
-          r.setTimeout(90000, () => { r.destroy(new Error('Timeout')) })
+          r.setTimeout(300000, () => { r.destroy(new Error('Timeout')) })
           r.on('error', reject)
           try { r.end(JSON.stringify(payload)) } catch (e) { reject(e) }
         })

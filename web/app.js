@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'https://esm.sh/react@18'
-import { createRoot } from 'https://esm.sh/react-dom@18/client'
+import React, { useEffect, useState } from 'https://esm.sh/react@18?dev'
+import { createRoot } from 'https://esm.sh/react-dom@18/client?dev'
 import Login from './pages/Login.js'
 import Projects from './pages/Projects.js'
 import Directions from './pages/Directions.js'
