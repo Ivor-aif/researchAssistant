@@ -96,7 +96,7 @@ router.post('/ai/test', body('apiName').isString().isLength({ min: 3, max: 32 })
 
 router.post('/ai/prompt',
   body('apiName').isString().isLength({ min: 3, max: 32 }).matches(/^[A-Za-z0-9_-]+$/),
-  body('prompt').isString().isLength({ min: 1, max: 10000 }),
+  body('prompt').isString().isLength({ min: 1, max: 1000000 }),
   body('debug').optional().isBoolean(),
   body('requestId').optional().isString(),
   async (req, res) => {

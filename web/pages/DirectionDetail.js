@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'https://esm.sh/react@18?dev'
 import * as pdfjsLib from 'https://esm.sh/pdfjs-dist@3.11.174/build/pdf.mjs'
 import ReactMarkdown from 'https://esm.sh/react-markdown@9.0.1?deps=react@18&dev'
 import remarkGfm from 'https://esm.sh/remark-gfm@4.0.0?deps=react@18&dev'
+import { marked } from 'https://esm.sh/marked@12.0.0'
+import html2pdf from 'https://esm.sh/html2pdf.js@0.10.1?bundle'
 
 const hasWorkerOptions = !!(pdfjsLib && pdfjsLib.GlobalWorkerOptions)
 if (hasWorkerOptions) {
@@ -14,8 +16,8 @@ import { genReqId, appendLog } from '../log.js'
 import { formatDate } from '../time.js'
 const h = React.createElement
 
-const DEFAULT_SEARCH_PROMPT = `你是资深研究助理。基于给定基础文献集，针对指定网站进行大规模相关文献检索，返回覆盖广泛的扩展文献集（JSON数组，仅数据，无Markdown）。字段：title, author, source, year, doi。`
-const DEFAULT_REVIEW_PROMPT = `你是资深学术写作助手。基于用户勾选的基础文献（≥10）与扩展检索文献，生成结构化中文综述（Markdown）。必须包含：摘要、引言、方法、结果与讨论、结论、参考文献。重点分析基础文献，整合扩展文献保证覆盖面，保持学术严谨与引用规范（按作者-年份或编号一致）。只返回Markdown文本。`
+const DEFAULT_SEARCH_PROMPT = `你是资深研究助理。基于给定基础文献集和关键词主题，针对指定网站进行大规模相关文献检索，返回覆盖广泛的扩展文献集（JSON数组，仅数据，无Markdown）。字段：title, author, source, year, doi。`
+const DEFAULT_REVIEW_PROMPT = `你是资深学术写作助手，十分擅长于总结并写出综述。基于用户勾选的基础文献（≥10）与扩展检索文献，生成结构化中文综述（Markdown）。必须包含：摘要、引言、方法、结果与讨论、结论、参考文献。重点分析基础文献，整合扩展文献（这一部分可以列表格）保证覆盖面，保持学术严谨与引用规范（按作者-年份或编号一致）。不要返回别的信息，只返回综述本身的Markdown文本。`
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -60,8 +62,7 @@ function DirectionDetailContent({ project, onExit }) {
   const [searchPromptTpl, setSearchPromptTpl] = useState(DEFAULT_SEARCH_PROMPT)
   const [reviewPromptTpl, setReviewPromptTpl] = useState(DEFAULT_REVIEW_PROMPT)
   const [reviewMd, setReviewMd] = useState('')
-  const [citationStats, setCitationStats] = useState(null)
-  const [termsReport, setTermsReport] = useState(null)
+  const [reviewExpanded, setReviewExpanded] = useState(true)
   const [msg, setMsg] = useState('')
   const [page, setPage] = useState(1)
   const [searching, setSearching] = useState(false)
@@ -86,8 +87,8 @@ function DirectionDetailContent({ project, onExit }) {
         const a = await api('/config/ai'); setApis(a)
         if (a.length > 0) {
            // Default to first API if not set
-           setSearchApiName(prev => prev || a[0].api_name)
-           setReviewApiName(prev => prev || a[0].api_name)
+          setSearchApiName(prev => prev || a[0].api_name)
+          setReviewApiName(prev => prev || a[0].api_name)
         }
         const s = await api('/config/sites'); setSites(s); 
         const sel = {}; s.forEach(it => sel[it.id] = true); 
@@ -123,7 +124,6 @@ function DirectionDetailContent({ project, onExit }) {
         else setReviewPromptTpl(DEFAULT_REVIEW_PROMPT)
         
         if (saved.reviewMd) setReviewMd(saved.reviewMd)
-        if (saved.citationStats) setCitationStats(saved.citationStats)
       }
     } catch {}
   }, [])
@@ -140,11 +140,10 @@ function DirectionDetailContent({ project, onExit }) {
       page, 
       searchPromptTpl, 
       reviewPromptTpl, 
-      reviewMd, 
-      citationStats 
+      reviewMd
     }
     try { localStorage.setItem('dir_' + d.id, JSON.stringify(data)) } catch {}
-  }, [searchApiName, reviewApiName, keywords, uploaded, results, siteSelected, manualSiteSelected, page, searchPromptTpl, reviewPromptTpl, reviewMd, citationStats])
+  }, [searchApiName, reviewApiName, keywords, uploaded, results, siteSelected, manualSiteSelected, page, searchPromptTpl, reviewPromptTpl, reviewMd])
   
   function selectedCount() {
     const arr = [...uploaded.filter(x => x.selected), ...results.filter(x => x.selected)]
@@ -264,19 +263,19 @@ function DirectionDetailContent({ project, onExit }) {
           try { parsed = JSON.parse(raw) } catch {}
 
           if (parsed && parsed.choices && Array.isArray(parsed.choices) && parsed.choices[0] && parsed.choices[0].message) {
-             let content = parsed.choices[0].message.content
-             const match = content.match(/```json\s*([\s\S]*?)\s*```/) || content.match(/```\s*([\s\S]*?)\s*```/)
-             if (match) content = match[1]
-             try {
-               parsed = JSON.parse(content)
-             } catch (e) {
-               console.warn('Inner content parse failed', e)
-             }
-          } else {
-             const match = raw.match(/```json\s*([\s\S]*?)\s*```/) || raw.match(/```\s*([\s\S]*?)\s*```/)
-             if (match) {
-                try { parsed = JSON.parse(match[1]) } catch {}
-             }
+            let content = parsed.choices[0].message.content
+            const match = content.match(/```json\s*([\s\S]*?)\s*```/) || content.match(/```\s*([\s\S]*?)\s*```/)
+            if (match) content = match[1]
+            try {
+              parsed = JSON.parse(content)
+            } catch (e) {
+              console.warn('Inner content parse failed', e)
+            }
+        } else {
+            const match = raw.match(/```json\s*([\s\S]*?)\s*```/) || raw.match(/```\s*([\s\S]*?)\s*```/)
+            if (match) {
+              try { parsed = JSON.parse(match[1]) } catch {}
+            }
           }
 
           if (Array.isArray(parsed)) {
@@ -375,19 +374,8 @@ function DirectionDetailContent({ project, onExit }) {
   }
   
   function buildCitationStats() {
-    const items = combinedList().filter(x => x.selected)
-    const bySource = {}
-    const byYear = {}
-    let doiValid = 0, doiInvalid = 0
-    items.forEach(x => {
-      const s = (x.source || '未知来源').trim()
-      bySource[s] = (bySource[s] || 0) + 1
-      const y = (x.year || '年份未知').toString()
-      byYear[y] = (byYear[y] || 0) + 1
-      const valid = isValidDOI(x.doi)
-      if (valid) doiValid++; else doiInvalid++
-    })
-    return { total: items.length, bySource, byYear, doi: { valid: doiValid, invalid: doiInvalid } }
+    // Deprecated
+    return null
   }
   
   function genReviewPrompt(reqId, explicitExpanded) {
@@ -437,7 +425,7 @@ function DirectionDetailContent({ project, onExit }) {
         doi: x.doi || ''
       }))
       const tpl = DEFAULT_SEARCH_PROMPT
-      const p = `${tpl}\n\n研究方向：${name}\n关键词：${keywords}\n文献网站：${siteInfo.join(', ')}\n基础文献集（>=10）：${JSON.stringify(basePapers)}`
+      const p = `${tpl}\n\n研究方向：${name}\n文献网站：${siteInfo.join(', ')}\n基础文献集（>=10）：${JSON.stringify(basePapers)}`
       
       appendLog({ id: requestId, step: 'auto_search_start', apiName: searchApiName })
       
@@ -453,50 +441,61 @@ function DirectionDetailContent({ project, onExit }) {
         appendLog({ id: requestId, step: 'auto_search_fail_1', error: e1.message })
         await new Promise(res => setTimeout(res, 1000))
         try {
-             const startRetry = Date.now()
-             appendLog({ id: requestId, step: 'auto_search_retry' })
-             r = await api('/config/ai/prompt', { method: 'POST', body: searchBody, timeoutMs: 300000 })
-             appendLog({ id: requestId, step: 'auto_search_retry_success', latency: Date.now() - startRetry })
+            const startRetry = Date.now()
+            appendLog({ id: requestId, step: 'auto_search_retry' })
+            r = await api('/config/ai/prompt', { method: 'POST', body: searchBody, timeoutMs: 300000 })
+            appendLog({ id: requestId, step: 'auto_search_retry_success', latency: Date.now() - startRetry })
         } catch (e2) {
-             throw new Error('步骤1搜索失败: ' + e2.message)
+            throw new Error('步骤1搜索失败: ' + e2.message)
         }
       }
       
       if (r && r.answer) {
-         let raw = r.answer.trim()
-         let parsed = null
-         try { parsed = JSON.parse(raw) } catch {}
-         if (!parsed) {
-             const match = raw.match(/```json\s*([\s\S]*?)\s*```/) || raw.match(/```\s*([\s\S]*?)\s*```/)
-             if (match) try { parsed = JSON.parse(match[1]) } catch {}
-         }
-         if (parsed && parsed.choices && parsed.choices[0] && parsed.choices[0].message) {
-             let content = parsed.choices[0].message.content
-             const match = content.match(/```json\s*([\s\S]*?)\s*```/) || content.match(/```\s*([\s\S]*?)\s*```/)
-             if (match) content = match[1]
-             try { parsed = JSON.parse(content) } catch {}
-         }
-         let items = []
-         if (Array.isArray(parsed)) items = parsed
-         else if (typeof parsed === 'object' && parsed !== null) {
+        let raw = r.answer.trim()
+        let parsed = null
+        try { parsed = JSON.parse(raw) } catch {}
+        if (!parsed) {
+            const match = raw.match(/```json\s*([\s\S]*?)\s*```/) || raw.match(/```\s*([\s\S]*?)\s*```/)
+            if (match) try { parsed = JSON.parse(match[1]) } catch {}
+        }
+        if (parsed && parsed.choices && parsed.choices[0] && parsed.choices[0].message) {
+            let content = parsed.choices[0].message.content
+            const match = content.match(/```json\s*([\s\S]*?)\s*```/) || content.match(/```\s*([\s\S]*?)\s*```/)
+            if (match) content = match[1]
+            try { parsed = JSON.parse(content) } catch {}
+        }
+        
+        let items = []
+        if (Array.isArray(parsed)) {
+            items = parsed
+        } else if (typeof parsed === 'object' && parsed !== null) {
+            // 尝试查找对象中是否包含数组字段 (如 { "papers": [...] })
             const arrayProp = Object.values(parsed).find(v => Array.isArray(v))
-            if (arrayProp) items = arrayProp
-         }
-         
-         if (Array.isArray(items)) {
-            newItems = items.map(x => ({
-              id: 'ai_' + Math.random().toString(36).slice(2), 
-              title: x.title || x.Title || '无标题', 
-              author: x.author || x.Author || '未知作者', 
-              source: x.source || x.Source || '未知来源', 
-              year: x.year || x.Year || '年份未知', 
-              doi: x.doi || x.DOI || null,
-              selected: false, 
-              source_type: 'ai' 
-            }))
-            // Bug Fix 2: 扩展检索结果不直接显示在列表中，仅传递给下一步
-            // setResults(prev => [...newItems, ...prev])
-         }
+            if (arrayProp) {
+                items = arrayProp
+            } else {
+                // 如果对象本身不是数组且没有数组属性，但可能就是单个文献对象
+                // 此时将其包装为数组
+                if (parsed.title || parsed.Title) {
+                    items = [parsed]
+                }
+            }
+        }
+
+        if (Array.isArray(items)) {
+          newItems = items.map(x => ({
+            id: 'ai_' + Math.random().toString(36).slice(2), 
+            title: x.title || x.Title || '无标题', 
+            author: x.author || x.Author || '未知作者', 
+            source: x.source || x.Source || '未知来源', 
+            year: x.year || x.Year || '年份未知', 
+            doi: x.doi || x.DOI || null,
+            selected: false, 
+            source_type: 'ai' 
+          }))
+          // Bug Fix 2: 扩展检索结果不直接显示在列表中，仅传递给下一步
+          // setResults(prev => [...newItems, ...prev])
+        }
       }
       
       setAnchorStep('reviewing')
@@ -514,31 +513,29 @@ function DirectionDetailContent({ project, onExit }) {
         author: x.author || '',
         year: x.year || ''
       }))
-      // 限制扩展文献数量，防止超长
-      const limitedExpanded = expandedForReview.slice(0, 50)
       
       const reviewTpl = reviewPromptTpl && reviewPromptTpl.trim().length > 0 ? reviewPromptTpl.trim() : DEFAULT_REVIEW_PROMPT
-      const reviewP = `${reviewTpl}\n\n研究方向：${name}\n关键词：${keywords}\n基础文献：${JSON.stringify(baseForReview)}\n扩展文献：${JSON.stringify(limitedExpanded)}`
+      const reviewP = `${reviewTpl}\n\n研究方向：${name}\n基础文献：${JSON.stringify(baseForReview)}\n扩展文献：${JSON.stringify(expandedForReview)}`
       
       const reviewBody = { apiName: reviewApiName, prompt: reviewP, debug: true, requestId }
       let rr = null
       try {
-         const startT = Date.now()
-         appendLog({ id: requestId, step: 'auto_review_send_1' })
-         rr = await api('/config/ai/prompt', { method: 'POST', body: reviewBody, timeoutMs: 300000 })
-         appendLog({ id: requestId, step: 'auto_review_success', latency: Date.now() - startT })
+        const startT = Date.now()
+        appendLog({ id: requestId, step: 'auto_review_send_1' })
+        rr = await api('/config/ai/prompt', { method: 'POST', body: reviewBody, timeoutMs: 300000 })
+        appendLog({ id: requestId, step: 'auto_review_success', latency: Date.now() - startT })
       } catch (e1) {
-         console.warn('Step 2 attempt 1 failed', e1)
-         appendLog({ id: requestId, step: 'auto_review_fail_1', error: e1.message })
-         await new Promise(res => setTimeout(res, 1000))
-         try {
+        console.warn('Step 2 attempt 1 failed', e1)
+        appendLog({ id: requestId, step: 'auto_review_fail_1', error: e1.message })
+        await new Promise(res => setTimeout(res, 1000))
+        try {
             const startRetry = Date.now()
             appendLog({ id: requestId, step: 'auto_review_retry' })
             rr = await api('/config/ai/prompt', { method: 'POST', body: reviewBody, timeoutMs: 300000 })
             appendLog({ id: requestId, step: 'auto_review_retry_success', latency: Date.now() - startRetry })
-         } catch (e2) {
+        } catch (e2) {
             throw new Error('步骤2综述生成失败: ' + e2.message)
-         }
+        }
       }
       
       const answer = rr && rr.answer ? String(rr.answer) : ''
@@ -555,10 +552,7 @@ function DirectionDetailContent({ project, onExit }) {
       if (match) finalMd = match[1]
       
       setReviewMd(finalMd)
-      const stats = buildCitationStats()
-      setCitationStats(stats)
-      setTermsReport(buildTermsReport(finalMd))
-      await api('/directions/' + d.id, { method: 'PUT', body: { status: '已生成综述', review_md: finalMd, citation_stats: stats } })
+      await api('/directions/' + d.id, { method: 'PUT', body: { status: '已生成综述', review_md: finalMd } })
       setStatus('已生成综述')
       setMsg('全流程锚定完成')
       
@@ -600,10 +594,7 @@ function DirectionDetailContent({ project, onExit }) {
       if (match) finalMd = match[1]
       
       setReviewMd(finalMd)
-      const stats = buildCitationStats()
-      setCitationStats(stats)
-      setTermsReport(buildTermsReport(finalMd))
-      await api('/directions/' + d.id, { method: 'PUT', body: { status: '已生成综述', review_md: finalMd, citation_stats: stats } })
+      await api('/directions/' + d.id, { method: 'PUT', body: { status: '已生成综述', review_md: finalMd } })
       setStatus('已生成综述')
       setMsg('综述已生成并保存')
     } catch (e) {
@@ -623,74 +614,10 @@ function DirectionDetailContent({ project, onExit }) {
   }
   
   function buildTermsReport(text) {
-    const plain = mdToPlain(text)
-    const kw = String(keywords || '').split(/[,\s，；;]+/).map(s => s.trim()).filter(Boolean)
-    const items = kw.map(term => {
-      const re = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
-      const count = (plain.match(re) || []).length
-      return { term, count }
-    })
-    const variants = []
-    kw.forEach(term => {
-      const alt = term.replace(/\s+/g, '-')
-      if (alt !== term) {
-        const re = new RegExp(alt.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
-        const c = (plain.match(re) || []).length
-        if (c > 0) variants.push(`${term} 的连字符变体：${alt}（${c}次）`)
-      }
-      const upper = term.toUpperCase()
-      if (upper !== term) {
-        const re2 = new RegExp(upper.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')
-        const c2 = (plain.match(re2) || []).length
-        if (c2 > 0) variants.push(`${term} 的大写变体：${upper}（${c2}次）`)
-      }
-    })
-    return { items, variants }
+    // Deprecated
+    return null
   }
-  
-  function createSimplePDF(text) {
-    const lines = mdToPlain(text).split('\n').map(s => s.trim())
-    const contentLines = lines.filter(s => s.length > 0).slice(0, 1000)
-    const objects = []
-    const offsets = []
-    const pushObj = (s) => { offsets.push(objects.join('').length); objects.push(s) }
-    pushObj('%PDF-1.4\n')
-    const fontObj = '5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj\n'
-    const pageKidsRef = '3 0 R'
-    const catalogObj = '1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n'
-    pushObj(catalogObj)
-    const pagesObj = '2 0 obj << /Type /Pages /Count 1 /Kids [3 0 R] >> endobj\n'
-    pushObj(pagesObj)
-    const resources = '<< /Font << /F1 5 0 R >> >>'
-    const pageObj = '3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources ' + resources + ' >> endobj\n'
-    pushObj(pageObj)
-    const leading = 14
-    let contentStream = 'BT /F1 12 Tf 72 750 Td\n'
-    contentLines.forEach((ln, idx) => {
-      const escaped = ln.replace(/([()\\])/g, '\\$1')
-      if (idx === 0) {
-        contentStream += `(${escaped}) Tj\n`
-      } else {
-        contentStream += `T* (${escaped}) Tj\n`
-      }
-    })
-    contentStream += 'ET'
-    const content = `4 0 obj << /Length ${contentStream.length} >> stream\n${contentStream}\nendstream\nendobj\n`
-    pushObj(content)
-    pushObj(fontObj)
-    const xrefStart = objects.join('').length
-    let xref = 'xref\n0 6\n0000000000 65535 f \n'
-    const calc = (idx) => String(offsets[idx]).padStart(10, '0')
-    xref += calc(0) + ' 00000 n \n'
-    xref += calc(1) + ' 00000 n \n'
-    xref += calc(2) + ' 00000 n \n'
-    xref += calc(3) + ' 00000 n \n'
-    xref += calc(4) + ' 00000 n \n'
-    const trailer = `trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`
-    const full = objects.join('') + xref + trailer
-    return new Blob([full], { type: 'application/pdf' })
-  }
-  
+
   function downloadMd() {
     if (!reviewMd) return
     const blob = new Blob([reviewMd], { type: 'text/markdown;charset=utf-8' })
@@ -698,11 +625,50 @@ function DirectionDetailContent({ project, onExit }) {
     const a = document.createElement('a'); a.href = url; a.download = `${name}-综述.md`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
   
-  function downloadPdf() {
+  async function downloadPdf() {
     if (!reviewMd) return
-    const blob = createSimplePDF(reviewMd)
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a'); a.href = url; a.download = `${name}-综述.pdf`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
+    
+    // 1. 准备 HTML 内容 (使用 marked 转换，不显示在前端)
+    const htmlContent = marked.parse(reviewMd)
+    
+    // 2. 创建临时容器
+    const element = document.createElement('div')
+    element.innerHTML = `
+      <div class="pdf-container" style="font-family: 'SimSun', 'Songti SC', serif; padding: 40px; color: #000; background: #fff; font-size: 14px; line-height: 1.6;">
+        <h1 style="text-align: center; margin-bottom: 30px;">${name} - 文献综述</h1>
+        <div class="markdown-body">
+          ${htmlContent}
+        </div>
+      </div>
+    `
+    // 必须挂载到 DOM 才能被 html2canvas 捕获，但可以隐藏
+    element.style.position = 'absolute'
+    element.style.left = '-10000px'
+    element.style.top = '0'
+    element.style.width = '800px' // A4 宽度近似值
+    element.style.zIndex = '-1000'
+    document.body.appendChild(element)
+    
+    // 3. 配置 html2pdf
+    const opt = {
+      margin: 10,
+      filename: `${name}-综述.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true, logging: false, scrollY: 0 },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    }
+    
+    // 4. 生成并下载
+    try {
+      setMsg('正在生成 PDF...')
+      await html2pdf().set(opt).from(element).save()
+      setMsg('PDF 下载已开始')
+    } catch (e) {
+      console.error('PDF generation failed', e)
+      setMsg('PDF 生成失败: ' + e.message)
+    } finally {
+      document.body.removeChild(element)
+    }
   }
   
   const totalPages = Math.max(1, Math.ceil(combinedList().length / pageSize))
@@ -735,19 +701,19 @@ function DirectionDetailContent({ project, onExit }) {
       h('div', { style: { marginTop: 8 } },
         h('span', { className: 'muted', style: { marginRight: 8 } }, '目标网站：'),
         h('div', { style: { display: 'inline-flex', flexWrap: 'wrap', gap: 8, verticalAlign: 'middle' } },
-           ...sites.map(s => h('label', { key: s.id, style: { display: 'flex', alignItems: 'center', cursor: 'pointer', background: '#f9fafb', padding: '2px 6px', borderRadius: 4, border: '1px solid #e5e7eb', fontSize: '0.9em' } },
-              h('input', { type: 'checkbox', checked: !!manualSiteSelected[s.id], onChange: () => toggleManualSite(s.id), style: { marginRight: 4 } }),
-              h('span', null, s.site_name)
-           ))
+          ...sites.map(s => h('label', { key: s.id, style: { display: 'flex', alignItems: 'center', cursor: 'pointer', background: '#f9fafb', padding: '2px 6px', borderRadius: 4, border: '1px solid #e5e7eb', fontSize: '0.9em' } },
+            h('input', { type: 'checkbox', checked: !!manualSiteSelected[s.id], onChange: () => toggleManualSite(s.id), style: { marginRight: 4 } }),
+            h('span', null, s.site_name)
+          ))
         )
       ),
       h('div', { style: { marginTop: 12 } },
         h('div', { style: { marginBottom: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
-           h('span', { className: 'muted' }, '搜索 Prompt 模板：'),
-           h('button', { 
-             className: 'secondary btn-small',
-             onClick: () => setSearchPromptTpl(DEFAULT_SEARCH_PROMPT)
-           }, '恢复默认')
+          h('span', { className: 'muted' }, '搜索 Prompt 模板：'),
+          h('button', { 
+            className: 'secondary btn-small',
+            onClick: () => setSearchPromptTpl(DEFAULT_SEARCH_PROMPT)
+          }, '恢复默认')
         ),
         h('textarea', { 
           placeholder: '搜索Prompt模板（可选，自定义扩展检索行为）', 
@@ -764,53 +730,53 @@ function DirectionDetailContent({ project, onExit }) {
       h('h3', null, '文献选择'),
       h('div', { className: 'muted', style: { margin: '6px 0' } }, `已选基础文献（需>=10）：${selectedCount()}`),
       ...pageItems().map(it => h('div', { key: it.id, className: 'row', style: { display: 'flex', alignItems: 'flex-start', padding: '12px 0', borderBottom: '1px solid #f0f0f0' } },
-         
-         // 1. Checkbox Column
-         h('div', { style: { flex: '1 0 0', minWidth: 0, display: 'flex', paddingTop: 4, justifyContent: 'center' } },
-           h('input', { type: 'checkbox', checked: !!it.selected, onChange: () => toggleItem(it), style: { cursor: 'pointer', margin: 0 } })
-         ),
+        
+        // 1. Checkbox Column
+        h('div', { style: { flex: '1 0 0', minWidth: 0, display: 'flex', paddingTop: 4, justifyContent: 'center' } },
+          h('input', { type: 'checkbox', checked: !!it.selected, onChange: () => toggleItem(it), style: { cursor: 'pointer', margin: 0 } })
+        ),
 
-         // 2. Main Content Column
-         h('div', { style: { flex: '17 0 0', minWidth: 0, padding: '0 12px' } },
-            it.doi ? 
-              h('a', { 
-                href: it.doi.startsWith('http') ? it.doi : `https://doi.org/${it.doi}`, 
-                target: '_blank', 
-                rel: 'noopener noreferrer',
-                style: { fontWeight: 'bold', fontSize: '1.05em', lineHeight: '1.4', textDecoration: 'none', color: '#0066cc', display: 'block', wordBreak: 'break-word' },
-                title: '点击访问 DOI 链接'
-              }, it.title) :
-              h('span', { style: { fontWeight: 'bold', fontSize: '1.05em', lineHeight: '1.4', display: 'block', wordBreak: 'break-word' } }, it.title),
-            h('div', { className: 'muted', style: { fontSize: '0.9em', marginTop: 4, lineHeight: '1.4' } }, 
-              `${it.author || '未知作者'} (${it.year || '年份未知'}) - ${it.source || '未知来源'}`
-            )
-         ),
+        // 2. Main Content Column
+        h('div', { style: { flex: '17 0 0', minWidth: 0, padding: '0 12px' } },
+          it.doi ? 
+            h('a', { 
+              href: it.doi.startsWith('http') ? it.doi : `https://doi.org/${it.doi}`, 
+              target: '_blank', 
+              rel: 'noopener noreferrer',
+              style: { fontWeight: 'bold', fontSize: '1.05em', lineHeight: '1.4', textDecoration: 'none', color: '#0066cc', display: 'block', wordBreak: 'break-word' },
+              title: '点击访问 DOI 链接'
+            }, it.title) :
+            h('span', { style: { fontWeight: 'bold', fontSize: '1.05em', lineHeight: '1.4', display: 'block', wordBreak: 'break-word' } }, it.title),
+          h('div', { className: 'muted', style: { fontSize: '0.9em', marginTop: 4, lineHeight: '1.4' } }, 
+            `${it.author || '未知作者'} (${it.year || '年份未知'}) - ${it.source || '未知来源'}`
+          )
+        ),
 
-         // 3. Right Status Column
-         h('div', { style: { flex: '2 0 0', minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end' } },
-            h('span', { 
-              style: { 
-                fontSize: '0.75em', 
-                padding: '2px 8px', 
-                borderRadius: 10, 
-                background: it.source_type === 'ai' ? '#e6f7ff' : '#f6ffed', 
-                color: it.source_type === 'ai' ? '#1890ff' : '#52c41a',
-                border: `1px solid ${it.source_type === 'ai' ? '#91d5ff' : '#b7eb8f'}`,
-                marginBottom: 8,
-                whiteSpace: 'nowrap',
-                textAlign: 'center'
-              } 
-            }, it.source_type === 'ai' ? '新检索' : '用户上传'),
-            it.doi ? h('span', { style: { fontSize: '0.75em', marginBottom: 8, color: it.doi_valid ? '#52c41a' : '#ff4d4f' } }, it.doi_valid ? 'DOI有效' : 'DOI格式异常') : null,
-            h('button', { 
-              onClick: () => removeItem(it), 
-              style: { width: 28, height: 28, padding: 0, border: '1px solid #ff4d4f', color: '#ff4d4f', background: 'transparent', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' },
-              title: '删除条目',
-              onMouseEnter: (e) => { e.currentTarget.style.background = '#ff4d4f'; e.currentTarget.style.color = '#fff' },
-              onMouseLeave: (e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#ff4d4f' }
-            }, '×')
-         )
-       )),
+        // 3. Right Status Column
+        h('div', { style: { flex: '2 0 0', minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end' } },
+          h('span', { 
+            style: { 
+              fontSize: '0.75em', 
+              padding: '2px 8px', 
+              borderRadius: 10, 
+              background: it.source_type === 'ai' ? '#e6f7ff' : '#f6ffed', 
+              color: it.source_type === 'ai' ? '#1890ff' : '#52c41a',
+              border: `1px solid ${it.source_type === 'ai' ? '#91d5ff' : '#b7eb8f'}`,
+              marginBottom: 8,
+              whiteSpace: 'nowrap',
+              textAlign: 'center'
+            } 
+          }, it.source_type === 'ai' ? '新检索' : '用户上传'),
+          it.doi ? h('span', { style: { fontSize: '0.75em', marginBottom: 8, color: it.doi_valid ? '#52c41a' : '#ff4d4f' } }, it.doi_valid ? 'DOI有效' : 'DOI格式异常') : null,
+          h('button', { 
+            onClick: () => removeItem(it), 
+            style: { width: 28, height: 28, padding: 0, border: '1px solid #ff4d4f', color: '#ff4d4f', background: 'transparent', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' },
+            title: '删除条目',
+            onMouseEnter: (e) => { e.currentTarget.style.background = '#ff4d4f'; e.currentTarget.style.color = '#fff' },
+            onMouseLeave: (e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#ff4d4f' }
+          }, '×')
+        )
+      )),
       h('div', { className: 'row', style: { marginTop: 8 } },
         h('button', { onClick: () => setPage(p => Math.max(1, p - 1)) }, '上一页'),
         h('div', { className: 'muted' }, `${page}/${totalPages}`),
@@ -821,40 +787,40 @@ function DirectionDetailContent({ project, onExit }) {
         
         // Step 1
         h('div', { style: { border: '1px solid #e5e7eb', padding: 12, borderRadius: 8, marginBottom: 12, background: '#f9fafb' } },
-           h('div', { style: { fontWeight: 'bold', marginBottom: 8, color: '#374151' } }, '第一步：文献扩展搜索'),
-           h('div', { style: { marginBottom: 8 } }, 
-             h('span', { className: 'muted' }, '目标数据源（多选）：'),
-             h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 } },
-               ...sites.map(s => h('label', { key: s.id, style: { display: 'flex', alignItems: 'center', cursor: 'pointer', background: '#fff', padding: '4px 8px', borderRadius: 4, border: '1px solid #d1d5db' } },
-                  h('input', { type: 'checkbox', checked: !!siteSelected[s.id], onChange: () => toggleSite(s.id), style: { marginRight: 4 } }),
-                  h('a', { href: s.url, target: '_blank', onClick: e => e.stopPropagation() }, s.site_name)
-               ))
-             )
-           ),
-           h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 } },
-              h('span', { className: 'muted' }, '搜索 API：'),
-              h('select', { value: searchApiName, onChange: e => setSearchApiName(e.target.value), style: { maxWidth: 200 } },
-                 ...apis.map(a => h('option', { key: a.api_name, value: a.api_name }, a.api_name))
-              )
-           )
+          h('div', { style: { fontWeight: 'bold', marginBottom: 8, color: '#374151' } }, '第一步：文献扩展搜索'),
+          h('div', { style: { marginBottom: 8 } }, 
+            h('span', { className: 'muted' }, '目标数据源（多选）：'),
+            h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 } },
+              ...sites.map(s => h('label', { key: s.id, style: { display: 'flex', alignItems: 'center', cursor: 'pointer', background: '#fff', padding: '4px 8px', borderRadius: 4, border: '1px solid #d1d5db' } },
+                h('input', { type: 'checkbox', checked: !!siteSelected[s.id], onChange: () => toggleSite(s.id), style: { marginRight: 4 } }),
+                h('a', { href: s.url, target: '_blank', onClick: e => e.stopPropagation() }, s.site_name)
+              ))
+            )
+          ),
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 } },
+            h('span', { className: 'muted' }, '搜索 API：'),
+            h('select', { value: searchApiName, onChange: e => setSearchApiName(e.target.value), style: { maxWidth: 200 } },
+                ...apis.map(a => h('option', { key: a.api_name, value: a.api_name }, a.api_name))
+            )
+          )
         ),
         
         // Step 2
         h('div', { style: { border: '1px solid #e5e7eb', padding: 12, borderRadius: 8, marginBottom: 12, background: '#f9fafb' } },
-           h('div', { style: { fontWeight: 'bold', marginBottom: 8, color: '#374151' } }, '第二步：综述生成'),
-           h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 } },
-              h('span', { className: 'muted' }, '生成 API：'),
-              h('select', { value: reviewApiName, onChange: e => setReviewApiName(e.target.value), style: { maxWidth: 200 } },
-                 ...apis.map(a => h('option', { key: a.api_name, value: a.api_name }, a.api_name))
-              )
-           ),
-           h('div', null,
-             h('div', { style: { marginBottom: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
-                h('span', { className: 'muted' }, '综述 Prompt 模板：'),
-                h('button', { className: 'secondary btn-small', onClick: () => setReviewPromptTpl(DEFAULT_REVIEW_PROMPT) }, '恢复默认')
-             ),
-             h('textarea', { value: reviewPromptTpl, onChange: e => setReviewPromptTpl(e.target.value), rows: 3, style: { width: '100%', fontSize: '0.9em', borderColor: !reviewPromptTpl ? '#faad14' : '#d9d9d9' } })
-           )
+          h('div', { style: { fontWeight: 'bold', marginBottom: 8, color: '#374151' } }, '第二步：综述生成'),
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 } },
+            h('span', { className: 'muted' }, '生成 API：'),
+            h('select', { value: reviewApiName, onChange: e => setReviewApiName(e.target.value), style: { maxWidth: 200 } },
+                ...apis.map(a => h('option', { key: a.api_name, value: a.api_name }, a.api_name))
+            )
+          ),
+          h('div', null,
+            h('div', { style: { marginBottom: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+              h('span', { className: 'muted' }, '综述 Prompt 模板：'),
+              h('button', { className: 'secondary btn-small', onClick: () => setReviewPromptTpl(DEFAULT_REVIEW_PROMPT) }, '恢复默认')
+            ),
+            h('textarea', { value: reviewPromptTpl, onChange: e => setReviewPromptTpl(e.target.value), rows: 3, style: { width: '100%', fontSize: '0.9em', borderColor: !reviewPromptTpl ? '#faad14' : '#d9d9d9' } })
+          )
         ),
         
         // Action
@@ -869,30 +835,22 @@ function DirectionDetailContent({ project, onExit }) {
       h('div', { className: 'muted', style: { marginTop: 6 } }, '当前步骤：选择文献；下一步：生成综述')
     ),
     reviewMd ? h('div', { className: 'card' },
-      h('h3', null, '综述预览'),
-      h('div', { className: 'markdown-body', style: { maxHeight: 600, overflow: 'auto', border: '1px solid #eee', padding: 24, borderRadius: 8, background: '#fff' } },
-        h(ReactMarkdown, { remarkPlugins: [remarkGfm] }, reviewMd)
+      h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 } },
+        h('h3', { style: { margin: 0 } }, '综述预览'),
+        h('button', { 
+          className: 'secondary btn-small',
+          onClick: () => setReviewExpanded(!reviewExpanded)
+        }, reviewExpanded ? '折叠' : '展开')
       ),
-      h('div', { className: 'row', style: { marginTop: 12 } },
-        h('button', { className: 'secondary', onClick: downloadMd }, '下载MD'),
-        h('button', { className: 'secondary', onClick: downloadPdf }, '下载PDF')
-      )
-    ) : null,
-    citationStats ? h('div', { className: 'card' },
-      h('h3', null, '引用来源统计'),
-      h('div', null, `总计：${citationStats.total}`),
-      h('div', null, '按来源：'),
-      h('div', null, Object.entries(citationStats.bySource).map(([k,v]) => h('div', { key: k }, `${k}: ${v}`))),
-      h('div', null, '按年份：'),
-      h('div', null, Object.entries(citationStats.byYear).map(([k,v]) => h('div', { key: k }, `${k}: ${v}`))),
-      h('div', null, `DOI有效：${citationStats.doi.valid}，无效：${citationStats.doi.invalid}`)
-    ) : null,
-    termsReport ? h('div', { className: 'card' },
-      h('h3', null, '术语一致性检查'),
-      h('div', null, '根据关键词推断术语使用情况（区分大小写与连字符）：'),
-      h('div', null, termsReport.items.map(it => h('div', { key: it.term }, `${it.term}: ${it.count} 次`))),
-      termsReport.variants.length > 0 ? h('div', null, '检测到可能的变体：') : null,
-      termsReport.variants.length > 0 ? h('div', null, termsReport.variants.map(v => h('div', { key: v }, v))) : null
+      reviewExpanded ? h('div', null,
+        h('div', { className: 'markdown-body', style: { maxHeight: 600, overflow: 'auto', border: '1px solid #eee', padding: 24, borderRadius: 8, background: '#fff' } },
+          h(ReactMarkdown, { remarkPlugins: [remarkGfm] }, reviewMd)
+        ),
+        h('div', { className: 'row', style: { marginTop: 12 } },
+          h('button', { className: 'secondary', onClick: downloadMd }, '下载MD'),
+          h('button', { className: 'secondary', onClick: downloadPdf }, '下载PDF')
+        )
+      ) : null
     ) : null,
     msg ? h('div', { className: 'muted', style: { marginTop: 8 } }, msg) : null
   )
