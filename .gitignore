@@ -34,6 +34,7 @@ temp/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+gitCheckpoint.bat
 
 # Project data (NeDB)
 server/data/

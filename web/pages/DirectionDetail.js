@@ -3,7 +3,6 @@ import * as pdfjsLib from 'https://esm.sh/pdfjs-dist@3.11.174/build/pdf.mjs'
 import ReactMarkdown from 'https://esm.sh/react-markdown@9.0.1?deps=react@18&dev'
 import remarkGfm from 'https://esm.sh/remark-gfm@4.0.0?deps=react@18&dev'
 import { marked } from 'https://esm.sh/marked@12.0.0'
-import html2pdf from 'https://esm.sh/html2pdf.js@0.10.1?bundle'
 
 const hasWorkerOptions = !!(pdfjsLib && pdfjsLib.GlobalWorkerOptions)
 if (hasWorkerOptions) {
@@ -335,8 +334,8 @@ function DirectionDetailContent({ project, onExit }) {
             rawItemSample: items[0] || null
           })
         } else {
-           setMsg(`获取数据格式错误，已发送至 ${searchApiName}`)
-           appendLog({ id: requestId, step: 'process_invalid_format', type: typeof items })
+          setMsg(`获取数据格式错误，已发送至 ${searchApiName}`)
+          appendLog({ id: requestId, step: 'process_invalid_format', type: typeof items })
         }
       } else {
         setMsg(`未获取到有效回答，已发送至 ${searchApiName}`)
@@ -628,47 +627,64 @@ function DirectionDetailContent({ project, onExit }) {
   async function downloadPdf() {
     if (!reviewMd) return
     
-    // 1. 准备 HTML 内容 (使用 marked 转换，不显示在前端)
+    // 使用原生浏览器打印功能 (Save as PDF) 以确保最佳渲染效果
     const htmlContent = marked.parse(reviewMd)
     
-    // 2. 创建临时容器
-    const element = document.createElement('div')
-    element.innerHTML = `
-      <div class="pdf-container" style="font-family: 'SimSun', 'Songti SC', serif; padding: 40px; color: #000; background: #fff; font-size: 14px; line-height: 1.6;">
-        <h1 style="text-align: center; margin-bottom: 30px;">${name} - 文献综述</h1>
-        <div class="markdown-body">
-          ${htmlContent}
-        </div>
-      </div>
-    `
-    // 必须挂载到 DOM 才能被 html2canvas 捕获，但可以隐藏
-    element.style.position = 'absolute'
-    element.style.left = '-10000px'
-    element.style.top = '0'
-    element.style.width = '800px' // A4 宽度近似值
-    element.style.zIndex = '-1000'
-    document.body.appendChild(element)
+    const iframe = document.createElement('iframe')
+    iframe.style.position = 'fixed'
+    iframe.style.right = '0'
+    iframe.style.bottom = '0'
+    iframe.style.width = '0'
+    iframe.style.height = '0'
+    iframe.style.border = '0'
+    document.body.appendChild(iframe)
     
-    // 3. 配置 html2pdf
-    const opt = {
-      margin: 10,
-      filename: `${name}-综述.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, logging: false, scrollY: 0 },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    }
+    const doc = iframe.contentWindow.document
+    doc.open()
+    doc.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>${name} - 文献综述</title>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.5.0/github-markdown-light.min.css">
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji"; }
+          .markdown-body { 
+            box-sizing: border-box; 
+            min-width: 200px; 
+            max-width: 980px; 
+            margin: 0 auto; 
+            padding: 45px; 
+          }
+          @media print {
+            .markdown-body { padding: 0; max-width: none; }
+            @page { margin: 2cm; size: A4; }
+          }
+        </style>
+      </head>
+      <body class="markdown-body">
+        <h1 style="text-align: center; border-bottom: none; margin-bottom: 40px;">${name} - 文献综述</h1>
+        ${htmlContent}
+      </body>
+      </html>
+    `)
+    doc.close()
     
-    // 4. 生成并下载
-    try {
-      setMsg('正在生成 PDF...')
-      await html2pdf().set(opt).from(element).save()
-      setMsg('PDF 下载已开始')
-    } catch (e) {
-      console.error('PDF generation failed', e)
-      setMsg('PDF 生成失败: ' + e.message)
-    } finally {
-      document.body.removeChild(element)
-    }
+    setMsg('正在调用浏览器打印...')
+    
+    // 等待资源加载
+    setTimeout(() => {
+      try {
+        iframe.contentWindow.focus()
+        iframe.contentWindow.print()
+        setMsg('请在打印窗口中选择"另存为 PDF"')
+      } catch (e) {
+        setMsg('打印调用失败: ' + e.message)
+      } finally {
+        // 打印对话框关闭后移除 iframe (部分浏览器会阻塞，部分不会，延迟移除较安全)
+        setTimeout(() => document.body.removeChild(iframe), 2000)
+      }
+    }, 1000)
   }
   
   const totalPages = Math.max(1, Math.ceil(combinedList().length / pageSize))
@@ -779,7 +795,7 @@ function DirectionDetailContent({ project, onExit }) {
       )),
       h('div', { className: 'row', style: { marginTop: 8 } },
         h('button', { onClick: () => setPage(p => Math.max(1, p - 1)) }, '上一页'),
-        h('div', { className: 'muted' }, `${page}/${totalPages}`),
+        h('div', { className: 'muted', style: { fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' } }, `${page}/${totalPages}`),
         h('button', { onClick: () => setPage(p => Math.min(totalPages, p + 1)) }, '下一页')
       ),
       h('div', { style: { marginTop: 20, borderTop: '1px solid #eee', paddingTop: 12 } },
@@ -837,18 +853,18 @@ function DirectionDetailContent({ project, onExit }) {
     reviewMd ? h('div', { className: 'card' },
       h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 } },
         h('h3', { style: { margin: 0 } }, '综述预览'),
-        h('button', { 
-          className: 'secondary btn-small',
-          onClick: () => setReviewExpanded(!reviewExpanded)
-        }, reviewExpanded ? '折叠' : '展开')
+        h('div', { style: { display: 'flex', gap: 8 } },
+          h('button', { className: 'secondary btn-small', onClick: downloadMd }, '下载MD'),
+          h('button', { className: 'secondary btn-small', onClick: downloadPdf }, '下载PDF'),
+          h('button', { 
+            className: 'secondary btn-small',
+            onClick: () => setReviewExpanded(!reviewExpanded)
+          }, reviewExpanded ? '折叠' : '展开')
+        )
       ),
       reviewExpanded ? h('div', null,
         h('div', { className: 'markdown-body', style: { maxHeight: 600, overflow: 'auto', border: '1px solid #eee', padding: 24, borderRadius: 8, background: '#fff' } },
           h(ReactMarkdown, { remarkPlugins: [remarkGfm] }, reviewMd)
-        ),
-        h('div', { className: 'row', style: { marginTop: 12 } },
-          h('button', { className: 'secondary', onClick: downloadMd }, '下载MD'),
-          h('button', { className: 'secondary', onClick: downloadPdf }, '下载PDF')
         )
       ) : null
     ) : null,

@@ -13,6 +13,10 @@ export async function api(path, { method = 'GET', body, timeoutMs = 10000 } = {}
   try {
     const resp = await fetch(`${apiBase}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined, signal: controller.signal })
     if (!resp.ok) {
+      if (resp.status === 401) {
+        localStorage.removeItem('jwt')
+        if (typeof window !== 'undefined') window.location.reload()
+      }
       const text = await resp.text().catch(() => '')
       console.error('API response error', { method, url: `${apiBase}${path}`, status: resp.status, body: text })
       throw new Error(text || `HTTP ${resp.status}`)
