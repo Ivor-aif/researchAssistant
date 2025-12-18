@@ -1,15 +1,8 @@
 import React, { useEffect, useState } from 'https://esm.sh/react@18?dev'
-import * as pdfjsLib from 'https://esm.sh/pdfjs-dist@3.11.174/build/pdf.mjs'
 import ReactMarkdown from 'https://esm.sh/react-markdown@9.0.1?deps=react@18&dev'
 import remarkGfm from 'https://esm.sh/remark-gfm@4.0.0?deps=react@18&dev'
 import { marked } from 'https://esm.sh/marked@12.0.0'
 
-const hasWorkerOptions = !!(pdfjsLib && pdfjsLib.GlobalWorkerOptions)
-if (hasWorkerOptions) {
-  try { pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://esm.sh/pdfjs-dist@3.11.174/build/pdf.worker.mjs' } catch (e) { console.error('pdfjs workerSrc set failed', e) }
-} else {
-  console.log('pdfjs GlobalWorkerOptions not available; using disableWorker')
-}
 import { api } from '../apiClient.js'
 import { genReqId, appendLog } from '../log.js'
 import { formatDate } from '../time.js'
@@ -17,6 +10,25 @@ const h = React.createElement
 
 const DEFAULT_SEARCH_PROMPT = `你是资深研究助理。基于给定基础文献集和关键词主题，针对指定网站进行大规模相关文献检索，返回覆盖广泛的扩展文献集（JSON数组，仅数据，无Markdown）。字段：title, author, source, year, doi。`
 const DEFAULT_REVIEW_PROMPT = `你是资深学术写作助手，十分擅长于总结并写出综述。基于用户勾选的基础文献（≥10）与扩展检索文献，生成结构化中文综述（Markdown）。必须包含：摘要、引言、方法、结果与讨论、结论、参考文献。重点分析基础文献，整合扩展文献（这一部分可以列表格）保证覆盖面，保持学术严谨与引用规范（按作者-年份或编号一致）。不要返回别的信息，只返回综述本身的Markdown文本。`
+
+const DEFAULT_DEEP_PROMPT = `你是世界顶尖的科研专家。
+用户希望基于提供的文献上下文和指定的研究倾向，进行深度的研究工作。
+
+请遵循以下步骤进行严谨、详尽的推理与生成：
+1. **分析文献**：深入阅读提供的所有文献内容，提取核心理论、方法、数据和结论。
+2. **结合倾向**：根据用户的研究倾向（如建立理论、模拟实验、代码生成等），筛选并整合相关信息。
+3. **制定方案**：
+  - 如果是理论构建：推导新的理论框架或模型公式，论证其合理性。
+  - 如果是模拟实验：设计详细的实验步骤、参数设置、预期结果及验证方法。
+  - 如果是代码生成：编写完整的、可运行的核心代码片段（Python/Matlab/C++等），并附带注释与说明。
+  - 其他倾向：根据具体需求提供专业、深度的内容。
+4. **生成报告**：输出一份结构清晰、内容详实的Markdown报告。
+
+**要求**：
+- 内容必须极度严谨，符合学术标准。
+- 上下文非常长，请确保逻辑连贯。
+- 必须包含具体的公式、代码或数据支持，拒绝空泛的描述。
+- 输出格式为 Markdown。`
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -62,11 +74,27 @@ function DirectionDetailContent({ project, onExit }) {
   const [reviewPromptTpl, setReviewPromptTpl] = useState(DEFAULT_REVIEW_PROMPT)
   const [reviewMd, setReviewMd] = useState('')
   const [reviewExpanded, setReviewExpanded] = useState(true)
+  const [listExpanded, setListExpanded] = useState(true)
   const [msg, setMsg] = useState('')
   const [page, setPage] = useState(1)
   const [searching, setSearching] = useState(false)
   const [anchoring, setAnchoring] = useState(false)
   const [anchorStep, setAnchorStep] = useState('idle')
+  const [uploadModalOpen, setUploadModalOpen] = useState(false)
+  const [uploadPickerHover, setUploadPickerHover] = useState(false)
+  const [uploadPickerActive, setUploadPickerActive] = useState(false)
+  const [uploadMsg, setUploadMsg] = useState('')
+  const [uploadParsing, setUploadParsing] = useState(false)
+  
+  // Deep Research State
+  const [deepTendency, setDeepTendency] = useState('')
+  const [deepApiName, setDeepApiName] = useState('')
+  const [deepPromptTpl, setDeepPromptTpl] = useState(DEFAULT_DEEP_PROMPT)
+  const [deepResult, setDeepResult] = useState('')
+  const [deepRunning, setDeepRunning] = useState(false)
+  const [deepExpanded, setDeepExpanded] = useState(true)
+  const [deepFiles, setDeepFiles] = useState([])
+
   const pageSize = 20
   const name = d.name || '(未命名)'
   
@@ -109,6 +137,11 @@ function DirectionDetailContent({ project, onExit }) {
         if (saved.reviewApiName) setReviewApiName(saved.reviewApiName)
         else if (saved.apiName) setReviewApiName(saved.apiName)
 
+        if (saved.deepPromptTpl) setDeepPromptTpl(saved.deepPromptTpl)
+        else setDeepPromptTpl(DEFAULT_DEEP_PROMPT)
+        if (saved.deepResult) setDeepResult(saved.deepResult)
+        if (saved.deepFiles) setDeepFiles(saved.deepFiles)
+
         if (saved.keywords) setKeywords(saved.keywords)
         if (saved.uploaded) setUploaded(saved.uploaded)
         if (saved.results) setResults(saved.results)
@@ -139,10 +172,29 @@ function DirectionDetailContent({ project, onExit }) {
       page, 
       searchPromptTpl, 
       reviewPromptTpl, 
-      reviewMd
+      reviewMd,
+      deepTendency,
+      deepApiName,
+      deepPromptTpl,
+      deepResult
     }
     try { localStorage.setItem('dir_' + d.id, JSON.stringify(data)) } catch {}
-  }, [searchApiName, reviewApiName, keywords, uploaded, results, siteSelected, manualSiteSelected, page, searchPromptTpl, reviewPromptTpl, reviewMd])
+  }, [searchApiName, reviewApiName, keywords, uploaded, results, siteSelected, manualSiteSelected, page, searchPromptTpl, reviewPromptTpl, reviewMd, deepTendency, deepApiName, deepPromptTpl, deepResult])
+
+  useEffect(() => {
+    if (!uploadModalOpen) return
+    setUploadMsg('')
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') setUploadModalOpen(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.body.style.overflow = prevOverflow
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [uploadModalOpen])
   
   function selectedCount() {
     const arr = [...uploaded.filter(x => x.selected), ...results.filter(x => x.selected)]
@@ -173,24 +225,43 @@ function DirectionDetailContent({ project, onExit }) {
     return re.test(String(doi).trim())
   }
   
-  async function parsePDF(file) {
+  function addPDF(file) {
+    const title = file.name.replace(/\.pdf$/i, '')
+    const item = { id: 'u_' + Math.random().toString(36).slice(2), title, filename: file.name, source: 'uploaded', selected: true, source_type: 'uploaded', content: '' }
+    setUploaded(prev => [item, ...prev])
+    setUploadMsg('已添加（未解析）：' + title)
+    setMsg('已添加（未解析）：' + title)
+  }
+
+  async function parseMd(file) {
     try {
-      const buf = await file.arrayBuffer()
-      const doc = await pdfjsLib.getDocument({ data: buf, disableWorker: !hasWorkerOptions }).promise
-      let meta = { info: {} }
-      try { meta = await doc.getMetadata() } catch {}
-      const title = (meta.info && meta.info.Title) ? meta.info.Title : file.name.replace(/\.pdf$/i, '')
-      const item = { id: 'u_' + Math.random().toString(36).slice(2), title, source: 'uploaded', selected: true, source_type: 'uploaded' }
+      const text = await file.text()
+      const title = file.name.replace(/\.md$/i, '')
+      const item = { id: 'u_' + Math.random().toString(36).slice(2), title, filename: file.name, source: 'uploaded', selected: true, source_type: 'uploaded', content: text }
       setUploaded(prev => [item, ...prev])
-      setMsg('已解析：' + title)
+      setUploadMsg('已导入：' + title)
+      setMsg('已导入：' + title)
     } catch (e) {
-      setMsg('文献解析失败：' + e.message)
+      setUploadMsg('文献导入失败：' + e.message)
+      setMsg('文献导入失败：' + e.message)
     }
   }
   
-  function onUpload(e) {
+  async function onUpload(e) {
     const files = Array.from(e.target.files || [])
-    files.forEach(f => parsePDF(f))
+    if (files.length < 1) return
+    setUploadParsing(true)
+    try {
+      for (const f of files) {
+        const ext = String(f.name || '').toLowerCase().split('.').pop()
+        setUploadMsg('处理中：' + f.name)
+        if (ext === 'md') await parseMd(f)
+        else addPDF(f)
+      }
+    } finally {
+      setUploadParsing(false)
+    }
+    try { e.target.value = '' } catch {}
   }
   
   function genSearchPrompt(reqId, tplOverride, targetSites) {
@@ -686,30 +757,119 @@ function DirectionDetailContent({ project, onExit }) {
       }
     }, 1000)
   }
+
+  function onDeepUpload(e) {
+    const files = Array.from(e.target.files || [])
+    const added = files.map(file => ({
+      id: 'd_' + Math.random().toString(36).slice(2),
+      title: file.name.replace(/\.pdf$/i, ''),
+      filename: file.name,
+      size: file.size,
+      type: file.type || 'application/pdf',
+      file
+    }))
+    if (added.length > 0) setDeepFiles(prev => [...added, ...prev])
+  }
+
+  function removeDeepFile(id) {
+    setDeepFiles(prev => prev.filter(x => x.id !== id))
+  }
   
+  function downloadDeepMd() {
+    if (!deepResult) return
+    const blob = new Blob([deepResult], { type: 'text/markdown;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a'); a.href = url; a.download = `${name}-深度研究报告.md`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+  
+  async function startDeepResearch() {
+    if (!deepApiName) { setMsg('选择 API'); return }
+    if (!deepTendency) { setMsg('请输入研究倾向'); return }
+    if (deepFiles.length < 1) { setMsg('请上传 PDF'); return }
+
+    setDeepRunning(true)
+    const requestId = genReqId()
+    try {
+        const baseMeta = combinedList().filter(x => x.selected).map(x => ({
+          title: x.title || '',
+          author: x.author || '',
+          source: x.source || '',
+          year: x.year || '',
+          doi: x.doi || ''
+        }))
+        const fileList = deepFiles.map((f, i) => {
+          const sz = typeof f.size === 'number' ? `${Math.round(f.size / 1024)}KB` : ''
+          return `${i + 1}. ${f.filename || f.title}${sz ? ` (${sz})` : ''}`
+        }).join('\n')
+        const tpl = deepPromptTpl || DEFAULT_DEEP_PROMPT
+        const prompt = `${tpl}\n\nUser Research Tendency:\n${deepTendency}\n\nBase Literature Metadata:\n${JSON.stringify(baseMeta)}\n\nAttached Files:\n${fileList}`
+        
+        appendLog({ id: requestId, step: 'deep_research_start', apiName: deepApiName, promptLength: prompt.length })
+        
+        const fd = new FormData()
+        fd.append('prompt', prompt)
+        for (const f of deepFiles) {
+          if (f && f.file) fd.append('files', f.file, f.filename || f.file.name)
+        }
+
+        const r = await api(`/config/ai/${encodeURIComponent(deepApiName)}/prompt-files?debug=1&requestId=${encodeURIComponent(requestId)}`, { 
+            method: 'POST', 
+            body: fd, 
+            timeoutMs: 600000 
+        })
+        
+        let answer = r && r.answer ? String(r.answer) : ''
+        
+        let finalMd = answer
+        try {
+            const parsed = JSON.parse(answer)
+            if (parsed.choices && parsed.choices[0] && parsed.choices[0].message) {
+                finalMd = parsed.choices[0].message.content || ''
+            } else if (parsed.content) {
+                finalMd = parsed.content
+            }
+        } catch (e) {}
+        
+        const match = finalMd.match(/^```markdown\s*([\s\S]*?)\s*```$/) || finalMd.match(/^```\s*([\s\S]*?)\s*```$/)
+        if (match) finalMd = match[1]
+        
+        setDeepResult(finalMd)
+        setMsg('深度研究报告生成完毕')
+    } catch (e) {
+        setMsg('深度研究失败：' + e.message)
+        appendLog({ id: requestId, step: 'deep_research_fail', error: e.message })
+    } finally {
+        setDeepRunning(false)
+    }
+  }
+
   const totalPages = Math.max(1, Math.ceil(combinedList().length / pageSize))
   return h('div', { style: { maxWidth: 1200, margin: '0 auto', padding: '0 20px', width: '100%' } },
     h('div', { className: 'card' },
-      h('h2', null, '研究方向'),
+      h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+        h('h2', { style: { margin: 0 } }, '研究方向'),
+        h('button', { onClick: () => onExit && onExit() }, '返回')
+      ),
       h('div', null, `名称：${name}`),
       h('div', null, `创建时间：${d.created_at ? formatDate(d.created_at) : '未知'}`),
       h('div', null, `描述：${d.description || ''}`),
       proj ? h('div', null, `所属项目：${proj.name}`) : null,
       h('div', null, `状态：${status}`),
-      h('div', null, h('button', { onClick: () => onExit && onExit() }, '返回'))
     ),
     h('div', { className: 'card' },
-      h('h3', null, '文献收集方式'),
+      h('h3', null, '第一步：文献收集'),
       h('div', { className: 'row' },
-        h('input', { type: 'file', multiple: true, accept: '.pdf', onChange: onUpload }),
-        h('input', { placeholder: '关键词', value: keywords, onChange: e => setKeywords(e.target.value) }),
+        h('button', { 
+            onClick: () => setUploadModalOpen(true),
+            style: { border: '1px solid #ccc', borderRadius: '6px', background: '#fff', color: '#666', height: '38px', cursor: 'pointer', fontSize: '14px' } 
+        }, `上传/管理文献 (${uploaded.length})`),
+        h('input', { placeholder: '关键词', value: keywords, onChange: e => setKeywords(e.target.value), style: { textAlign: 'center' } }),
         h('div', { style: { display: 'flex', flexDirection: 'column' } },
           h('select', { value: searchApiName, onChange: e => setSearchApiName(e.target.value), title: '选择搜索用的AI-API' },
             ...apis.map(a => h('option', { key: a.api_name, value: a.api_name }, a.api_name))
           ),
-          h('span', { style: { fontSize: '0.8em', color: '#666' } }, '搜索 API')
         ),
-        h('button', { 
+        h('button', {
             onClick: sendPrompt, 
             disabled: searching || Object.keys(manualSiteSelected).filter(k => manualSiteSelected[k]).length < 1 || !searchApiName 
         }, searching ? '发送中...' : '文献搜索')
@@ -726,26 +886,30 @@ function DirectionDetailContent({ project, onExit }) {
       h('div', { style: { marginTop: 12 } },
         h('div', { style: { marginBottom: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
           h('span', { className: 'muted' }, '搜索 Prompt 模板：'),
-          h('button', { 
+          h('button', {
             className: 'secondary btn-small',
             onClick: () => setSearchPromptTpl(DEFAULT_SEARCH_PROMPT)
           }, '恢复默认')
         ),
-        h('textarea', { 
+        h('textarea', {
           placeholder: '搜索Prompt模板（可选，自定义扩展检索行为）', 
           value: searchPromptTpl, 
           onChange: e => setSearchPromptTpl(e.target.value), 
-          rows: 4, 
-          style: { width: '100%', borderColor: !searchPromptTpl ? '#faad14' : '#d9d9d9' } 
+          rows: 10, 
+          style: { width: '100%', fontSize: '14pt', borderColor: !searchPromptTpl ? '#faad14' : '#d9d9d9' } 
         }),
         !searchPromptTpl ? h('div', { style: { color: '#faad14', fontSize: '0.85em', marginTop: 4 } }, '⚠ 提示：输入框为空，建议恢复默认 Prompt 以获得最佳效果') : null
       ),
       h('div', { className: 'muted', style: { marginTop: 6 } }, '当前步骤：收集文献；下一步：选择与锚定')
     ),
     h('div', { className: 'card' },
-      h('h3', null, '文献选择'),
+      h('h3', null, '第二步：研究锚定'),
+      h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+        h('h4', null, '文献选择'),
+        h('button', { className: 'secondary btn-small', onClick: () => setListExpanded(!listExpanded) }, listExpanded ? '折叠列表' : '展开列表')
+      ),
       h('div', { className: 'muted', style: { margin: '6px 0' } }, `已选基础文献（需>=10）：${selectedCount()}`),
-      ...pageItems().map(it => h('div', { key: it.id, className: 'row', style: { display: 'flex', alignItems: 'flex-start', padding: '12px 0', borderBottom: '1px solid #f0f0f0' } },
+      listExpanded ? pageItems().map(it => h('div', { key: it.id, className: 'row', style: { display: 'flex', alignItems: 'flex-start', padding: '12px 0', borderBottom: '1px solid #f0f0f0' } },
         
         // 1. Checkbox Column
         h('div', { style: { flex: '1 0 0', minWidth: 0, display: 'flex', paddingTop: 4, justifyContent: 'center' } },
@@ -767,7 +931,7 @@ function DirectionDetailContent({ project, onExit }) {
             `${it.author || '未知作者'} (${it.year || '年份未知'}) - ${it.source || '未知来源'}`
           )
         ),
-
+        
         // 3. Right Status Column
         h('div', { style: { flex: '2 0 0', minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end' } },
           h('span', { 
@@ -792,18 +956,18 @@ function DirectionDetailContent({ project, onExit }) {
             onMouseLeave: (e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#ff4d4f' }
           }, '×')
         )
-      )),
-      h('div', { className: 'row', style: { marginTop: 8 } },
+      )) : null,
+      listExpanded ? h('div', { className: 'row', style: { marginTop: 8 } },
         h('button', { onClick: () => setPage(p => Math.max(1, p - 1)) }, '上一页'),
         h('div', { className: 'muted', style: { fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' } }, `${page}/${totalPages}`),
         h('button', { onClick: () => setPage(p => Math.min(totalPages, p + 1)) }, '下一页')
-      ),
+      ) : null,
       h('div', { style: { marginTop: 20, borderTop: '1px solid #eee', paddingTop: 12 } },
         h('h4', { style: { margin: '0 0 12px 0' } }, '锚定设置'),
         
         // Step 1
         h('div', { style: { border: '1px solid #e5e7eb', padding: 12, borderRadius: 8, marginBottom: 12, background: '#f9fafb' } },
-          h('div', { style: { fontWeight: 'bold', marginBottom: 8, color: '#374151' } }, '第一步：文献扩展搜索'),
+          h('div', { style: { fontWeight: 'bold', marginBottom: 8, color: '#374151' } }, '文献扩展搜索配置'),
           h('div', { style: { marginBottom: 8 } }, 
             h('span', { className: 'muted' }, '目标数据源（多选）：'),
             h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 } },
@@ -823,7 +987,7 @@ function DirectionDetailContent({ project, onExit }) {
         
         // Step 2
         h('div', { style: { border: '1px solid #e5e7eb', padding: 12, borderRadius: 8, marginBottom: 12, background: '#f9fafb' } },
-          h('div', { style: { fontWeight: 'bold', marginBottom: 8, color: '#374151' } }, '第二步：综述生成'),
+          h('div', { style: { fontWeight: 'bold', marginBottom: 8, color: '#374151' } }, '综述生成配置'),
           h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 } },
             h('span', { className: 'muted' }, '生成 API：'),
             h('select', { value: reviewApiName, onChange: e => setReviewApiName(e.target.value), style: { maxWidth: 200 } },
@@ -835,7 +999,7 @@ function DirectionDetailContent({ project, onExit }) {
               h('span', { className: 'muted' }, '综述 Prompt 模板：'),
               h('button', { className: 'secondary btn-small', onClick: () => setReviewPromptTpl(DEFAULT_REVIEW_PROMPT) }, '恢复默认')
             ),
-            h('textarea', { value: reviewPromptTpl, onChange: e => setReviewPromptTpl(e.target.value), rows: 3, style: { width: '100%', fontSize: '0.9em', borderColor: !reviewPromptTpl ? '#faad14' : '#d9d9d9' } })
+            h('textarea', { value: reviewPromptTpl, onChange: e => setReviewPromptTpl(e.target.value), rows: 10, style: { width: '100%', fontSize: '14pt', borderColor: !reviewPromptTpl ? '#faad14' : '#d9d9d9' } })
           )
         ),
         
@@ -868,6 +1032,131 @@ function DirectionDetailContent({ project, onExit }) {
         )
       ) : null
     ) : null,
-    msg ? h('div', { className: 'muted', style: { marginTop: 8 } }, msg) : null
+
+    // Step 3: Deep Research
+    h('div', { className: 'card', style: { marginTop: 12 } },
+      h('h3', null, '第三步：深度研究'),
+      h('div', { className: 'muted', style: { marginBottom: 12 } }, '基于此处上传的文献，结合研究倾向，开展深度研究。'),
+      
+      h('div', { style: { display: 'flex', flexDirection: 'column', gap: 16 } },
+        
+        // 1. File Upload
+        h('div', { style: { border: '1px solid #eee', padding: 12, borderRadius: 8, background: '#fafafa' } },
+          h('div', { style: { fontWeight: 'bold', marginBottom: 8 } }, '文献上传'),
+          h('input', { type: 'file', multiple: true, accept: '.pdf', onChange: onDeepUpload, style: { marginBottom: 8 } }),
+          
+          deepFiles.length > 0 ? h('div', { style: { maxHeight: 200, overflow: 'auto' } },
+            deepFiles.map(f => h('div', { key: f.id, style: { display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid #f0f0f0', fontSize: '0.9em' } },
+              h('span', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: 8 } }, f.title),
+              h('button', { 
+                onClick: () => removeDeepFile(f.id),
+                style: { border: 'none', background: 'transparent', color: '#ff4d4f', cursor: 'pointer', fontWeight: 'bold' }
+              }, '删除')
+            ))
+          ) : h('div', { className: 'muted' }, '暂无文献，请上传 PDF')
+        ),
+
+        // 2. Tendency Input
+        h('div', null,
+            h('div', { style: { fontWeight: 'bold', marginBottom: 4 } }, '研究倾向'),
+            h('textarea', { 
+                placeholder: '请输入具体的研究倾向，例如：\n- 建立关于...的理论模型\n- 设计...的模拟实验\n- 生成...的核心算法代码', 
+                value: deepTendency, 
+                onChange: e => setDeepTendency(e.target.value), 
+                rows: 15, 
+                style: { width: '100%', fontSize: '14pt', borderColor: !deepTendency ? '#faad14' : '#d9d9d9' } 
+            })
+        ),
+
+        // 3. API & Prompt
+        h('div', { style: { display: 'flex', gap: 12, flexWrap: 'wrap' } },
+            h('div', { style: { flex: 1, minWidth: 200 } },
+                h('div', { style: { fontWeight: 'bold', marginBottom: 4 } }, '选择 API'),
+                h('select', { value: deepApiName, onChange: e => setDeepApiName(e.target.value), style: { width: '100%' } },
+                    ...apis.map(a => h('option', { key: a.api_name, value: a.api_name }, a.api_name))
+                )
+            ),
+            h('div', { style: { flex: 2, minWidth: 300 } },
+                h('div', { style: { fontWeight: 'bold', marginBottom: 4, display: 'flex', justifyContent: 'space-between' } }, 
+                    h('span', null, 'Prompt 模板'),
+                    h('button', { className: 'secondary btn-small', onClick: () => setDeepPromptTpl(DEFAULT_DEEP_PROMPT) }, '恢复默认')
+                ),
+                h('textarea', { 
+                    value: deepPromptTpl, 
+                    onChange: e => setDeepPromptTpl(e.target.value), 
+                    rows: 10, 
+                    style: { width: '100%', fontSize: '14pt' } 
+                })
+            )
+        ),
+
+        // 4. Action
+        h('div', null,
+            h('button', { 
+                disabled: deepRunning || !deepApiName || !deepTendency || deepFiles.length === 0, 
+                onClick: startDeepResearch,
+                style: { width: '100%', padding: '12px', fontSize: '16px', fontWeight: 'bold', background: deepRunning ? '#ccc' : '#111827', color: '#fff', border: '1px solid #111827', cursor: deepRunning ? 'not-allowed' : 'pointer' } 
+            }, deepRunning ? '正在进行深度研究...' : '开始深度研究')
+        )
+      ),
+
+      // Result Display
+      deepResult ? h('div', { style: { marginTop: 20, borderTop: '1px solid #eee', paddingTop: 12 } },
+        h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 } },
+            h('h4', { style: { margin: 0 } }, '深度研究报告'),
+            h('div', { style: { display: 'flex', gap: 8 } },
+                h('button', { className: 'secondary btn-small', onClick: downloadDeepMd }, '下载报告'),
+                h('button', { className: 'secondary btn-small', onClick: () => setDeepExpanded(!deepExpanded) }, deepExpanded ? '折叠' : '展开')
+            )
+        ),
+        deepExpanded ? h('div', { className: 'markdown-body', style: { maxHeight: 600, overflow: 'auto', border: '1px solid #eee', padding: 24, borderRadius: 8, background: '#fff' } },
+            h(ReactMarkdown, { remarkPlugins: [remarkGfm] }, deepResult)
+        ) : null
+      ) : null
+    ),
+    
+    msg ? h('div', { className: 'muted', style: { marginTop: 8 } }, msg) : null,
+
+    uploadModalOpen ? h('div', { onClick: () => setUploadModalOpen(false), style: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' } },
+      h('div', { onClick: e => e.stopPropagation(), style: { background: '#fff', padding: 24, borderRadius: 8, width: 600, maxHeight: '80vh', display: 'flex', flexDirection: 'column', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' } },
+        h('h3', { style: { marginTop: 0, marginBottom: 16 } }, '上传文献'),
+        
+        h('div', { style: { flex: 1, overflowY: 'auto', border: '1px solid #eee', borderRadius: 4, padding: 12, marginBottom: 20, minHeight: 200 } },
+          uploaded.length > 0 ? uploaded.map(f => h('div', { key: f.id, style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #f5f5f5' } },
+            h('div', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: 12, flex: 1 } },
+                h('span', { style: { fontWeight: 'bold' } }, f.title || '无标题'),
+                h('div', { className: 'muted', style: { fontSize: '0.85em' } }, f.filename || '')
+            ),
+            h('button', { 
+                onClick: () => removeItem(f), 
+                style: { color: '#ff4d4f', background: 'none', border: '1px solid #ffccc7', padding: '2px 8px', borderRadius: 4, cursor: 'pointer', fontSize: '12px' } 
+            }, '删除')
+          )) : h('div', { className: 'muted', style: { textAlign: 'center', padding: 40 } }, '暂无上传文献')
+        ),
+        
+        h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 12 } },
+          h('div', { 
+            style: { position: 'relative' },
+            onMouseEnter: () => setUploadPickerHover(true),
+            onMouseLeave: () => { setUploadPickerHover(false); setUploadPickerActive(false) },
+            onMouseDown: () => setUploadPickerActive(true),
+            onMouseUp: () => setUploadPickerActive(false)
+          },
+            h('button', { disabled: uploadParsing, style: { background: uploadParsing ? '#9ca3af' : uploadPickerActive ? '#1f2937' : uploadPickerHover ? '#374151' : '#111827', transform: uploadParsing ? 'none' : uploadPickerActive ? 'scale(0.98)' : 'none', transition: 'background-color 0.2s, transform 0.1s', cursor: uploadParsing ? 'not-allowed' : 'pointer' } }, uploadParsing ? '处理中...' : '上传'),
+            h('input', { 
+              type: 'file', 
+              multiple: true, 
+              accept: 'application/pdf,.pdf,text/markdown,.md', 
+              onChange: onUpload, 
+              disabled: uploadParsing,
+              title: ' ',
+              style: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: uploadParsing ? 'not-allowed' : 'pointer' } 
+            })
+          ),
+          h('button', { onClick: () => setUploadModalOpen(false) }, '确认')
+        ),
+        uploadMsg ? h('div', { className: 'muted', style: { marginTop: 10 } }, uploadMsg) : null
+      )
+    ) : null
   )
 }

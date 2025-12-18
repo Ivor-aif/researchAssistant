@@ -177,6 +177,73 @@ router.post('/ai/prompt',
   }
 )
 
+router.post('/ai/:apiName/prompt-files',
+  param('apiName').isString().isLength({ min: 3, max: 32 }).matches(/^[A-Za-z0-9_-]+$/),
+  async (req, res) => {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() })
+    const cfg = await db.aiConfigs.findOne({ user_id: req.user.id, api_name: req.params.apiName })
+    if (!cfg) return res.status(404).json({ error: 'No config' })
+    const start = performance.now()
+    try {
+      if (cfg.type !== 'cloud') return res.status(400).json({ error: 'Only cloud AI supports file forwarding' })
+      const targetUrl = decrypt(cfg.url_enc)
+      const key = decrypt(cfg.api_key_enc)
+      if (!targetUrl) return res.status(400).json({ error: 'Missing URL' })
+
+      let u
+      try { u = new URL(targetUrl) } catch { return res.status(400).json({ error: 'Invalid URL' }) }
+      const proto = u.protocol === 'https:' ? https : http
+      const debug = String(req.query.debug || '').toLowerCase()
+      const debugOn = debug === '1' || debug === 'true' || debug === 'yes'
+      const requestId = req.query.requestId ? String(req.query.requestId) : null
+
+      const contentType = req.headers['content-type']
+      if (!contentType || !String(contentType).toLowerCase().startsWith('multipart/form-data')) {
+        return res.status(400).json({ error: 'Content-Type must be multipart/form-data' })
+      }
+
+      let extStatus = null
+      let extBody = ''
+      await new Promise((resolve, reject) => {
+        const headers = {}
+        headers['Content-Type'] = String(contentType)
+        const contentLength = req.headers['content-length']
+        if (contentLength) headers['Content-Length'] = String(contentLength)
+        if (key) headers['Authorization'] = `Bearer ${key}`
+
+        const r = proto.request(targetUrl, { method: 'POST', headers }, (resp) => {
+          extStatus = resp.statusCode || null
+          resp.on('data', (chunk) => { extBody += chunk.toString() })
+          resp.on('end', resolve)
+        })
+        r.setTimeout(600000, () => { r.destroy(new Error('Timeout')) })
+        r.on('error', reject)
+        req.on('aborted', () => { try { r.destroy(new Error('Client aborted')) } catch {} })
+        req.pipe(r)
+      })
+
+      const ms = Math.round(performance.now() - start)
+      const dbg = debugOn ? {
+        requestId,
+        url: targetUrl,
+        headersSent: { Authorization: key ? 'Bearer ****' : undefined, 'Content-Type': 'multipart/form-data' },
+        statusCode: extStatus,
+        latency_ms: ms,
+        body_sample: extBody.slice(0, 512)
+      } : undefined
+      if (debugOn && extStatus >= 400) console.warn('[PromptFilesWarning]', { requestId, status: extStatus, url: targetUrl })
+      return res.json({ status: 'ok', latency_ms: ms, answer: extBody, debug: dbg })
+    } catch (e) {
+      const ms = Math.round(performance.now() - start)
+      const debug = String(req.query.debug || '').toLowerCase()
+      const debugOn = debug === '1' || debug === 'true' || debug === 'yes'
+      const dbg = debugOn ? { requestId: req.query.requestId ? String(req.query.requestId) : null, error: e.message, stack: e.stack || null } : undefined
+      return res.status(200).json({ status: 'error', latency_ms: ms, message: e.message, debug: dbg })
+    }
+  }
+)
+
 // -------- Literature sites management --------
 router.get('/sites', async (req, res) => {
   const rows = await db.literatureSites.find({ user_id: req.user.id }).sort({ updated_at: -1 })

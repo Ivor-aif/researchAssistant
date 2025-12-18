@@ -5,13 +5,15 @@ function getToken() {
 }
 
 export async function api(path, { method = 'GET', body, timeoutMs = 10000 } = {}) {
-  const headers = { 'Content-Type': 'application/json' }
+  const isFormData = (typeof FormData !== 'undefined') && (body instanceof FormData)
+  const headers = isFormData ? {} : { 'Content-Type': 'application/json' }
   const token = getToken()
   if (token) headers['Authorization'] = `Bearer ${token}`
   const controller = new AbortController()
   const to = setTimeout(() => { try { controller.abort(new Error(`Request timed out after ${timeoutMs}ms`)) } catch {} }, timeoutMs)
   try {
-    const resp = await fetch(`${apiBase}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined, signal: controller.signal })
+    const reqBody = isFormData ? body : (body ? JSON.stringify(body) : undefined)
+    const resp = await fetch(`${apiBase}${path}`, { method, headers, body: reqBody, signal: controller.signal })
     if (!resp.ok) {
       if (resp.status === 401) {
         localStorage.removeItem('jwt')
