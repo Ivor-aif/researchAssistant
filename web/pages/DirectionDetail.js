@@ -762,13 +762,14 @@ function DirectionDetailContent({ project, onExit }) {
     const files = Array.from(e.target.files || [])
     const added = files.map(file => ({
       id: 'd_' + Math.random().toString(36).slice(2),
-      title: file.name.replace(/\.pdf$/i, ''),
+      title: file.name.replace(/\.(pdf|md)$/i, ''),
       filename: file.name,
       size: file.size,
       type: file.type || 'application/pdf',
       file
     }))
     if (added.length > 0) setDeepFiles(prev => [...added, ...prev])
+    try { e.target.value = '' } catch {}
   }
 
   function removeDeepFile(id) {
@@ -1042,8 +1043,20 @@ function DirectionDetailContent({ project, onExit }) {
         
         // 1. File Upload
         h('div', { style: { border: '1px solid #eee', padding: 12, borderRadius: 8, background: '#fafafa' } },
-          h('div', { style: { fontWeight: 'bold', marginBottom: 8 } }, '文献上传'),
-          h('input', { type: 'file', multiple: true, accept: '.pdf', onChange: onDeepUpload, style: { marginBottom: 8 } }),
+          h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 } },
+            h('div', { style: { fontWeight: 'bold' } }, '文献上传'),
+            h('div', { style: { position: 'relative', display: 'inline-block' } },
+              h('button', { style: { padding: '6px 12px', border: '1px solid #d9d9d9', borderRadius: '4px', background: '#111827', color: '#fff', cursor: 'pointer' } }, '添加文献 (PDF/MD)'),
+              h('input', { 
+                type: 'file', 
+                multiple: true, 
+                accept: '.pdf,.md', 
+                onChange: onDeepUpload, 
+                title: '上传研究起始文献',
+                style: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' } 
+              })
+            )
+          ),
           
           deepFiles.length > 0 ? h('div', { style: { maxHeight: 200, overflow: 'auto' } },
             deepFiles.map(f => h('div', { key: f.id, style: { display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid #f0f0f0', fontSize: '0.9em' } },
@@ -1053,7 +1066,7 @@ function DirectionDetailContent({ project, onExit }) {
                 style: { border: 'none', background: 'transparent', color: '#ff4d4f', cursor: 'pointer', fontWeight: 'bold' }
               }, '删除')
             ))
-          ) : h('div', { className: 'muted' }, '暂无文献，请上传 PDF')
+          ) : h('div', { className: 'muted' }, '暂无文献，请上传 PDF/MD')
         ),
 
         // 2. Tendency Input
