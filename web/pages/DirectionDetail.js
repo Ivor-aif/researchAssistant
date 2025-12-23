@@ -95,6 +95,30 @@ function DirectionDetailContent({ project, onExit }) {
   const [deepExpanded, setDeepExpanded] = useState(true)
   const [deepFiles, setDeepFiles] = useState([])
 
+  // Reload direction to get backend saved deepTendency/deepFiles
+  useEffect(() => {
+    (async () => {
+        try {
+            const list = await api(`/directions?projectId=${d.project_id}`)
+            const fresh = list.find(x => x.id === d.id)
+            if (fresh) {
+                if (fresh.deep_tendency) setDeepTendency(fresh.deep_tendency)
+                if (fresh.deep_files && fresh.deep_files.length > 0) setDeepFiles(fresh.deep_files)
+            }
+        } catch {}
+    })()
+  }, [d.id])
+
+  // Auto-save deepTendency
+  useEffect(() => {
+    const t = setTimeout(() => {
+        if (deepTendency) {
+            api(`/directions/${d.id}`, { method: 'PUT', body: { deep_tendency: deepTendency } }).catch(() => {})
+        }
+    }, 1000)
+    return () => clearTimeout(t)
+  }, [deepTendency])
+
   const pageSize = 20
   const name = d.name || '(未命名)'
   
@@ -116,6 +140,7 @@ function DirectionDetailContent({ project, onExit }) {
            // Default to first API if not set
           setSearchApiName(prev => prev || a[0].api_name)
           setReviewApiName(prev => prev || a[0].api_name)
+          setDeepApiName(prev => prev || a[0].api_name)
         }
         const s = await api('/config/sites'); setSites(s); 
         const sel = {}; s.forEach(it => sel[it.id] = true); 
@@ -758,22 +783,43 @@ function DirectionDetailContent({ project, onExit }) {
     }, 1000)
   }
 
-  function onDeepUpload(e) {
+  async function onDeepUpload(e) {
     const files = Array.from(e.target.files || [])
-    const added = files.map(file => ({
-      id: 'd_' + Math.random().toString(36).slice(2),
-      title: file.name.replace(/\.(pdf|md)$/i, ''),
-      filename: file.name,
-      size: file.size,
-      type: file.type || 'application/pdf',
-      file
-    }))
-    if (added.length > 0) setDeepFiles(prev => [...added, ...prev])
+    if (files.length === 0) return
+    
+    // Upload files immediately
+    const uploadedFiles = []
+    for (const file of files) {
+        const fd = new FormData()
+        fd.append('file', file)
+        try {
+            const res = await api(`/directions/${d.id}/files`, { method: 'POST', body: fd })
+            // res is { id, filename, path, size, type, created_at }
+            // We can also attach the original 'file' object if we want to use it immediately without re-downloading
+            // But better to stick to one source of truth. However, for startDeepResearch we need Blob.
+            // Let's store the File object temporarily in a property that is not saved to backend (backend ignores extra props on upload anyway)
+            // Actually, we just updated deepFiles from backend response which only has metadata.
+            // We can attach .file = file to it for local usage.
+            res.file = file
+            uploadedFiles.push(res)
+        } catch (err) {
+            console.error('Upload failed', err)
+            setMsg('文件上传失败: ' + file.name)
+        }
+    }
+
+    if (uploadedFiles.length > 0) setDeepFiles(prev => [...prev, ...uploadedFiles])
     try { e.target.value = '' } catch {}
   }
 
-  function removeDeepFile(id) {
-    setDeepFiles(prev => prev.filter(x => x.id !== id))
+  async function removeDeepFile(id) {
+    if (!confirm('确定删除此文件吗？')) return
+    try {
+        await api(`/directions/${d.id}/files/${id}`, { method: 'DELETE' })
+        setDeepFiles(prev => prev.filter(x => x.id !== id))
+    } catch (e) {
+        setMsg('删除失败')
+    }
   }
   
   function downloadDeepMd() {
@@ -784,9 +830,10 @@ function DirectionDetailContent({ project, onExit }) {
   }
   
   async function startDeepResearch() {
+    if (!reviewMd) { setMsg('请先生成综述（步骤2）'); return }
     if (!deepApiName) { setMsg('选择 API'); return }
     if (!deepTendency) { setMsg('请输入研究倾向'); return }
-    if (deepFiles.length < 1) { setMsg('请上传 PDF'); return }
+    if (deepFiles.length < 1) { setMsg('请先上传文献'); return }
 
     setDeepRunning(true)
     const requestId = genReqId()
@@ -803,14 +850,35 @@ function DirectionDetailContent({ project, onExit }) {
           return `${i + 1}. ${f.filename || f.title}${sz ? ` (${sz})` : ''}`
         }).join('\n')
         const tpl = deepPromptTpl || DEFAULT_DEEP_PROMPT
-        const prompt = `${tpl}\n\nUser Research Tendency:\n${deepTendency}\n\nBase Literature Metadata:\n${JSON.stringify(baseMeta)}\n\nAttached Files:\n${fileList}`
+        const prompt = `${tpl}\n\nReview Markdown:\n${reviewMd}\n\nUser Research Tendency:\n${deepTendency}\n\nBase Literature Metadata:\n${JSON.stringify(baseMeta)}\n\nAttached Files:\n${fileList}`
         
         appendLog({ id: requestId, step: 'deep_research_start', apiName: deepApiName, promptLength: prompt.length })
         
         const fd = new FormData()
         fd.append('prompt', prompt)
+        
+        const token = localStorage.getItem('jwt')
+        const apiBase = (typeof window !== 'undefined' && (window.__API_BASE__ || `${window.location.origin}/api/v1`)) || 'http://localhost:4000/api/v1'
+
         for (const f of deepFiles) {
-          if (f && f.file) fd.append('files', f.file, f.filename || f.file.name)
+          if (f.file) {
+            fd.append('files', f.file, f.filename || f.file.name)
+          } else {
+             // Fetch from backend
+             try {
+                 const res = await fetch(`${apiBase}/directions/${d.id}/files/${f.id}`, {
+                     headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                 })
+                 if (res.ok) {
+                     const blob = await res.blob()
+                     fd.append('files', blob, f.filename)
+                 } else {
+                     console.error('Failed to fetch file', f.filename)
+                 }
+             } catch(e) {
+                 console.error('Fetch file error', e)
+             }
+          }
         }
 
         const r = await api(`/config/ai/${encodeURIComponent(deepApiName)}/prompt-files?debug=1&requestId=${encodeURIComponent(requestId)}`, { 
@@ -1060,7 +1128,7 @@ function DirectionDetailContent({ project, onExit }) {
           
           deepFiles.length > 0 ? h('div', { style: { maxHeight: 200, overflow: 'auto' } },
             deepFiles.map(f => h('div', { key: f.id, style: { display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid #f0f0f0', fontSize: '0.9em' } },
-              h('span', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: 8 } }, f.title),
+              h('span', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: 8 } }, f.title || f.filename),
               h('button', { 
                 onClick: () => removeDeepFile(f.id),
                 style: { border: 'none', background: 'transparent', color: '#ff4d4f', cursor: 'pointer', fontWeight: 'bold' }
@@ -1106,7 +1174,7 @@ function DirectionDetailContent({ project, onExit }) {
         // 4. Action
         h('div', null,
             h('button', { 
-                disabled: deepRunning || !deepApiName || !deepTendency || deepFiles.length === 0, 
+                disabled: deepRunning, 
                 onClick: startDeepResearch,
                 style: { width: '100%', padding: '12px', fontSize: '16px', fontWeight: 'bold', background: deepRunning ? '#ccc' : '#111827', color: '#fff', border: '1px solid #111827', cursor: deepRunning ? 'not-allowed' : 'pointer' } 
             }, deepRunning ? '正在进行深度研究...' : '开始深度研究')

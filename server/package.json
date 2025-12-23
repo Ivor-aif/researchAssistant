@@ -17,6 +17,8 @@
     "express-validator": "^7.0.1",
     "helmet": "^7.0.0",
     "jsonwebtoken": "^9.0.2",
-    "nedb-promises": "^6.2.3"
+    "multer": "^2.0.2",
+    "nedb-promises": "^6.2.3",
+    "pdf-parse": "^2.4.5"
   }
 }

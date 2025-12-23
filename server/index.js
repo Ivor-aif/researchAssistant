@@ -14,7 +14,7 @@ import { requireAuth } from './middleware/auth.js'
 const app = express()
 app.use(helmet({ crossOriginEmbedderPolicy: false, contentSecurityPolicy: false }))
 app.use(cors({ origin: true }))
-app.use(express.json({ limit: '1mb' }))
+app.use(express.json({ limit: '50mb' }))
 app.set('trust proxy', 1)
 
 const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200 })

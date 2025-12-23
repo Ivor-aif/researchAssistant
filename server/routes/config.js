@@ -6,8 +6,17 @@ import fs from 'fs'
 import http from 'http'
 import https from 'https'
 import { URL } from 'url'
+import multer from 'multer'
+import { createRequire } from 'module'
+
+const require = createRequire(import.meta.url)
+const pdfParse = require('pdf-parse')
 
 const router = express.Router()
+const upload = multer({ 
+  storage: multer.memoryStorage(), 
+  limits: { fileSize: 50 * 1024 * 1024 } 
+})
 
 // List AI configs for current user (redacted sensitive fields)
 router.get('/ai', async (req, res) => {
@@ -144,10 +153,15 @@ router.post('/ai/prompt',
           if (key) reqOpt.headers['Authorization'] = `Bearer ${key}`
           const r = proto.request(targetUrl, reqOpt, (resp) => {
             extStatus = resp.statusCode || null
-            resp.on('data', (chunk) => { extBody += chunk.toString() })
-            resp.on('end', resolve)
+            const chunks = []
+            resp.on('data', (chunk) => chunks.push(chunk))
+            resp.on('end', () => {
+              extBody = Buffer.concat(chunks).toString('utf8')
+              resolve()
+            })
+            resp.on('error', reject)
           })
-          r.setTimeout(300000, () => { r.destroy(new Error('Timeout')) })
+          r.setTimeout(600000, () => { r.destroy(new Error('Timeout')) })
           r.on('error', reject)
           try { r.end(JSON.stringify(payload)) } catch (e) { reject(e) }
         })
@@ -178,18 +192,68 @@ router.post('/ai/prompt',
 )
 
 router.post('/ai/:apiName/prompt-files',
+  upload.array('files'),
   param('apiName').isString().isLength({ min: 3, max: 32 }).matches(/^[A-Za-z0-9_-]+$/),
   async (req, res) => {
     const errors = validationResult(req)
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() })
+    
     const cfg = await db.aiConfigs.findOne({ user_id: req.user.id, api_name: req.params.apiName })
     if (!cfg) return res.status(404).json({ error: 'No config' })
+    
     const start = performance.now()
     try {
       if (cfg.type !== 'cloud') return res.status(400).json({ error: 'Only cloud AI supports file forwarding' })
-      const targetUrl = decrypt(cfg.url_enc)
+      
+      // 1. Process Files
+      let attachedContent = ''
+      if (req.files && req.files.length > 0) {
+        for (const f of req.files) {
+          let text = ''
+          try {
+            if (f.mimetype === 'application/pdf' || f.originalname.toLowerCase().endsWith('.pdf')) {
+              const data = await pdfParse(f.buffer)
+              text = data.text
+            } else {
+              text = f.buffer.toString('utf8')
+            }
+          } catch (e) {
+            text = '(Parse Error: ' + e.message + ')'
+          }
+          // Simple cleanup
+          text = text.replace(/\x00/g, '')
+          attachedContent += `\n\n[File: ${f.originalname}]\n${text}\n----------------\n`
+        }
+      }
+      
+      // 2. Prepare Payload
+      const userPrompt = req.body.prompt || ''
+      const finalPrompt = userPrompt + (attachedContent ? `\n\nAttached Files Content:\n${attachedContent}` : '')
+      
+      const urlStrRaw = decrypt(cfg.url_enc)
       const key = decrypt(cfg.api_key_enc)
-      if (!targetUrl) return res.status(400).json({ error: 'Missing URL' })
+      if (!urlStrRaw) return res.status(400).json({ error: 'Missing URL' })
+      
+      let targetUrl = urlStrRaw
+      let payload = { prompt: finalPrompt }
+      const params = cfg.params_json ? JSON.parse(cfg.params_json) : {}
+      const model = params.model || 'deepseek-chat'
+      
+      // Intelligent adaptation for OpenAI-compatible APIs
+      const isChatPath = /\/chat\/completions$/.test(targetUrl)
+      const isKnownBase = /api\.(deepseek|openai)\.com\/?$/.test(targetUrl)
+      
+      if (isChatPath || isKnownBase) {
+         if (isKnownBase && !targetUrl.includes('/v1') && !targetUrl.includes('/chat')) {
+           targetUrl = targetUrl.replace(/\/$/, '') + '/chat/completions' 
+         }
+         payload = {
+           model: model,
+           messages: [
+             { role: 'user', content: finalPrompt }
+           ]
+         }
+      }
 
       let u
       try { u = new URL(targetUrl) } catch { return res.status(400).json({ error: 'Invalid URL' }) }
@@ -197,43 +261,93 @@ router.post('/ai/:apiName/prompt-files',
       const debug = String(req.query.debug || '').toLowerCase()
       const debugOn = debug === '1' || debug === 'true' || debug === 'yes'
       const requestId = req.query.requestId ? String(req.query.requestId) : null
-
-      const contentType = req.headers['content-type']
-      if (!contentType || !String(contentType).toLowerCase().startsWith('multipart/form-data')) {
-        return res.status(400).json({ error: 'Content-Type must be multipart/form-data' })
+      
+      let loopCount = 0
+      const maxLoops = 5
+      let fullContent = ''
+      let lastFinishReason = null
+      let finalExtStatus = null
+      let finalExtBody = ''
+      
+      while (loopCount < maxLoops) {
+          loopCount++
+          
+          let currentStatus = null
+          let currentBody = ''
+          
+          await new Promise((resolve, reject) => {
+            const reqOpt = { method: 'POST', headers: { 'Content-Type': 'application/json' } }
+            if (key) reqOpt.headers['Authorization'] = `Bearer ${key}`
+            
+            const r = proto.request(targetUrl, reqOpt, (resp) => {
+              currentStatus = resp.statusCode || null
+              const chunks = []
+              resp.on('data', (chunk) => chunks.push(chunk))
+              resp.on('end', () => {
+                currentBody = Buffer.concat(chunks).toString('utf8')
+                resolve()
+              })
+              resp.on('error', reject)
+            })
+            r.setTimeout(1800000, () => { r.destroy(new Error('Timeout')) }) // 30min
+            r.on('error', reject)
+            try { r.end(JSON.stringify(payload)) } catch (e) { reject(e) }
+          })
+          
+          finalExtStatus = currentStatus
+          finalExtBody = currentBody
+          
+          if (finalExtStatus !== 200) break
+          
+          if (!(isChatPath || isKnownBase)) break 
+          
+          let parsed = null
+          try { parsed = JSON.parse(finalExtBody) } catch(e) {}
+          
+          if (!parsed || !parsed.choices || !parsed.choices[0]) break
+          
+          const choice = parsed.choices[0]
+          const content = choice.message?.content || ''
+          fullContent += content
+          lastFinishReason = choice.finish_reason
+          
+          if (lastFinishReason === 'length') {
+              if (!payload.messages) break
+              payload.messages.push({ role: 'assistant', content: content })
+              payload.messages.push({ role: 'user', content: 'The response was truncated due to length limit. Please continue generating the rest of the content immediately, starting exactly where you left off. Do not repeat the previous content.' })
+          } else {
+              break
+          }
       }
 
-      let extStatus = null
-      let extBody = ''
-      await new Promise((resolve, reject) => {
-        const headers = {}
-        headers['Content-Type'] = String(contentType)
-        const contentLength = req.headers['content-length']
-        if (contentLength) headers['Content-Length'] = String(contentLength)
-        if (key) headers['Authorization'] = `Bearer ${key}`
-
-        const r = proto.request(targetUrl, { method: 'POST', headers }, (resp) => {
-          extStatus = resp.statusCode || null
-          resp.on('data', (chunk) => { extBody += chunk.toString() })
-          resp.on('end', resolve)
-        })
-        r.setTimeout(600000, () => { r.destroy(new Error('Timeout')) })
-        r.on('error', reject)
-        req.on('aborted', () => { try { r.destroy(new Error('Client aborted')) } catch {} })
-        req.pipe(r)
-      })
+      if (loopCount > 1 && lastFinishReason && fullContent) {
+           finalExtBody = JSON.stringify({
+              id: 'chatcmpl-synthetic-' + Date.now(),
+              object: 'chat.completion',
+              created: Math.floor(Date.now() / 1000),
+              model: model,
+              choices: [{
+                  index: 0,
+                  message: { role: 'assistant', content: fullContent },
+                  finish_reason: lastFinishReason
+              }]
+           })
+      }
 
       const ms = Math.round(performance.now() - start)
       const dbg = debugOn ? {
         requestId,
         url: targetUrl,
-        headersSent: { Authorization: key ? 'Bearer ****' : undefined, 'Content-Type': 'multipart/form-data' },
-        statusCode: extStatus,
+        headersSent: { Authorization: key ? 'Bearer ****' : undefined, 'Content-Type': 'application/json' },
+        statusCode: finalExtStatus,
         latency_ms: ms,
-        body_sample: extBody.slice(0, 512)
+        body_sample: finalExtBody.slice(0, 512),
+        loop_count: loopCount
       } : undefined
-      if (debugOn && extStatus >= 400) console.warn('[PromptFilesWarning]', { requestId, status: extStatus, url: targetUrl })
-      return res.json({ status: 'ok', latency_ms: ms, answer: extBody, debug: dbg })
+      
+      if (debugOn && finalExtStatus >= 400) console.warn('[PromptFilesWarning]', { requestId, status: finalExtStatus, url: targetUrl })
+      return res.json({ status: 'ok', latency_ms: ms, answer: finalExtBody, debug: dbg })
+      
     } catch (e) {
       const ms = Math.round(performance.now() - start)
       const debug = String(req.query.debug || '').toLowerCase()
