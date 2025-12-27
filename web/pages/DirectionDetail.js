@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'https://esm.sh/react@18?dev'
+import React, { useEffect, useState, useRef } from 'https://esm.sh/react@18?dev'
 import ReactMarkdown from 'https://esm.sh/react-markdown@9.0.1?deps=react@18&dev'
 import remarkGfm from 'https://esm.sh/remark-gfm@4.0.0?deps=react@18&dev'
 import { marked } from 'https://esm.sh/marked@12.0.0'
@@ -29,6 +29,24 @@ const DEFAULT_DEEP_PROMPT = `你是世界顶尖的科研专家。
 - 上下文非常长，请确保逻辑连贯。
 - 必须包含具体的公式、代码或数据支持，拒绝空泛的描述。
 - 输出格式为 Markdown。`
+
+const DEFAULT_DATA_PREDICT_PROMPT = `你是资深数据分析师。基于提供的深度研究报告，请预测相关的实验数据或结果。
+请生成包含详细数据、图表描述（如建议使用折线图、柱状图等）的预期结果报告。
+你需要：
+1. 分析研究报告中的假设和理论。
+2. 预测可能的实验数据（提供具体的模拟数据点）。
+3. 以Markdown表格形式展示数据。
+4. 描述数据趋势及其统计意义。
+5. 若可能，请提供用于可视化的Python/Matlab代码片段（可选）。`
+
+const DEFAULT_DATA_PROCESS_PROMPT = `你是资深数据分析师。基于提供的深度研究报告和用户上传的原始数据文件，请进行数据处理和分析。
+请生成包含图表描述、统计分析的最终结果报告。
+你需要：
+1. 读取并理解上传的数据文件内容（CSV/TXT/MD）。
+2. 结合研究报告的背景进行分析。
+3. 生成清洗后的数据表（Markdown格式）。
+4. 进行统计检验或趋势分析。
+5. 得出基于数据的结论。`
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -94,6 +112,18 @@ function DirectionDetailContent({ project, onExit }) {
   const [deepRunning, setDeepRunning] = useState(false)
   const [deepExpanded, setDeepExpanded] = useState(true)
   const [deepFiles, setDeepFiles] = useState([])
+
+  // Data Analysis State
+  const [dataFiles, setDataFiles] = useState([])
+  const [dataApiName, setDataApiName] = useState('')
+  const [dataPromptTpl, setDataPromptTpl] = useState(DEFAULT_DATA_PREDICT_PROMPT)
+  const [dataResult, setDataResult] = useState('')
+  const [dataRunning, setDataRunning] = useState(false)
+  const [dataExpanded, setDataExpanded] = useState(true)
+  const [dataMode, setDataMode] = useState('prediction') // 'prediction' | 'processing'
+  const [dataUploadHover, setDataUploadHover] = useState(false)
+  const [dataUploadActive, setDataUploadActive] = useState(false)
+  const dataInputRef = useRef(null)
 
   // Reload direction to get backend saved deepTendency/deepFiles
   useEffect(() => {
@@ -912,6 +942,94 @@ function DirectionDetailContent({ project, onExit }) {
     }
   }
 
+  // Data Analysis Handlers
+  useEffect(() => {
+    const mode = dataFiles.length > 0 ? 'processing' : 'prediction'
+    setDataMode(mode)
+    if (mode === 'processing') {
+         if (dataPromptTpl === DEFAULT_DATA_PREDICT_PROMPT) setDataPromptTpl(DEFAULT_DATA_PROCESS_PROMPT)
+    } else {
+         if (dataPromptTpl === DEFAULT_DATA_PROCESS_PROMPT) setDataPromptTpl(DEFAULT_DATA_PREDICT_PROMPT)
+    }
+  }, [dataFiles.length])
+
+  async function onDataUpload(e) {
+    const files = Array.from(e.target.files || [])
+    if (files.length === 0) return
+    const newFiles = []
+    for (const f of files) {
+        newFiles.push({
+            id: Math.random().toString(36).slice(2),
+            name: f.name,
+            file: f,
+            size: f.size
+        })
+    }
+    setDataFiles(prev => [...prev, ...newFiles])
+    try { e.target.value = '' } catch {}
+  }
+
+  function removeDataFile(id) {
+    setDataFiles(prev => prev.filter(x => x.id !== id))
+  }
+  
+  function downloadDataMd() {
+    if (!dataResult) return
+    const blob = new Blob([dataResult], { type: 'text/markdown;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a'); a.href = url; a.download = `${name}-数据分析报告.md`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+
+  async function startDataAnalysis() {
+    if (!deepResult) { setMsg('请先完成深度研究（步骤3）'); return }
+    if (!dataApiName) { setMsg('请选择 API'); return }
+    
+    setDataRunning(true)
+    const reqId = genReqId()
+    
+    try {
+        const tpl = dataPromptTpl
+        const prompt = `${tpl}\n\nDeep Research Report:\n${deepResult}\n\nUser Research Tendency:\n${deepTendency}`
+        
+        appendLog({ id: reqId, step: 'data_analysis_start', mode: dataMode, fileCount: dataFiles.length })
+        
+        const fd = new FormData()
+        fd.append('prompt', prompt)
+        
+        for (const f of dataFiles) {
+            fd.append('files', f.file, f.name)
+        }
+        
+        const r = await api(`/config/ai/${encodeURIComponent(dataApiName)}/prompt-files?debug=1&requestId=${encodeURIComponent(reqId)}`, { 
+            method: 'POST', 
+            body: fd, 
+            timeoutMs: 600000 
+        })
+        
+        let answer = r && r.answer ? String(r.answer) : ''
+        let finalMd = answer
+        try {
+            const parsed = JSON.parse(answer)
+            if (parsed.choices && parsed.choices[0] && parsed.choices[0].message) {
+                finalMd = parsed.choices[0].message.content || ''
+            } else if (parsed.content) {
+                finalMd = parsed.content
+            }
+        } catch (e) {}
+        
+        const match = finalMd.match(/^```markdown\s*([\s\S]*?)\s*```$/) || finalMd.match(/^```\s*([\s\S]*?)\s*```$/)
+        if (match) finalMd = match[1]
+        
+        setDataResult(finalMd)
+        setMsg('数据分析报告生成完毕')
+    } catch (e) {
+        setMsg('分析失败: ' + e.message)
+        appendLog({ id: reqId, step: 'data_analysis_fail', error: e.message })
+    } finally {
+        setDataRunning(false)
+    }
+  }
+
   const totalPages = Math.max(1, Math.ceil(combinedList().length / pageSize))
   return h('div', { style: { maxWidth: 1200, margin: '0 auto', padding: '0 20px', width: '100%' } },
     h('div', { className: 'card' },
@@ -1192,6 +1310,112 @@ function DirectionDetailContent({ project, onExit }) {
         ),
         deepExpanded ? h('div', { className: 'markdown-body', style: { maxHeight: 600, overflow: 'auto', border: '1px solid #eee', padding: 24, borderRadius: 8, background: '#fff' } },
             h(ReactMarkdown, { remarkPlugins: [remarkGfm] }, deepResult)
+        ) : null
+      ) : null
+    ),
+
+    // Step 4: Data Analysis
+    h('div', { className: 'card', style: { marginTop: 12 } },
+      h('h3', null, '第四步：数据处理/结果预测'),
+      h('div', { className: 'muted', style: { marginBottom: 12 } }, '基于深度研究报告，进行数据预测或处理用户上传的数据。'),
+      
+      h('div', { style: { display: 'flex', flexDirection: 'column', gap: 16 } },
+        
+        // 1. File Upload & Mode
+        h('div', { style: { border: '1px solid #eee', padding: 12, borderRadius: 8, background: '#fafafa' } },
+          h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 } },
+            h('div', { style: { fontWeight: 'bold' } }, '数据文件 (CSV/TXT/MD)'),
+            h('div', { style: { display: 'flex', alignItems: 'center', gap: 12 } },
+                h('div', { 
+                    style: { padding: '4px 8px', borderRadius: 4, background: dataMode === 'processing' ? '#e6f7ff' : '#fff7e6', color: dataMode === 'processing' ? '#1890ff' : '#fa8c16', border: `1px solid ${dataMode === 'processing' ? '#91d5ff' : '#ffd591'}`, fontSize: '0.9em' } 
+                }, dataMode === 'processing' ? '模式：数据处理' : '模式：预期结果'),
+                h('div', { 
+                    style: { position: 'relative', display: 'inline-block' }
+                },
+                    h('button', { 
+                        onClick: () => dataInputRef.current && dataInputRef.current.click(),
+                        onMouseEnter: () => setDataUploadHover(true),
+                        onMouseLeave: () => { setDataUploadHover(false); setDataUploadActive(false) },
+                        onMouseDown: () => setDataUploadActive(true),
+                        onMouseUp: () => setDataUploadActive(false),
+                        style: { 
+                            padding: '6px 12px', 
+                            border: '1px solid #d9d9d9', 
+                            borderRadius: '4px', 
+                            background: dataUploadActive ? '#1f2937' : dataUploadHover ? '#374151' : '#111827', 
+                            color: '#fff', 
+                            cursor: 'pointer',
+                            transform: dataUploadActive ? 'scale(0.98)' : 'none',
+                            transition: 'background-color 0.2s, transform 0.1s'
+                        } 
+                    }, '上传数据'),
+                    h('input', { 
+                        ref: dataInputRef,
+                        type: 'file', 
+                        multiple: true, 
+                        accept: '.csv,.txt,.md', 
+                        onChange: onDataUpload, 
+                        title: '上传数据文件',
+                        style: { display: 'none' } 
+                    })
+                )
+            )
+          ),
+          
+          dataFiles.length > 0 ? h('div', { style: { maxHeight: 200, overflow: 'auto' } },
+            dataFiles.map(f => h('div', { key: f.id, style: { display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid #f0f0f0', fontSize: '0.9em' } },
+              h('span', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: 8 } }, `${f.name} (${Math.round(f.size/1024)}KB)`),
+              h('button', { 
+                onClick: () => removeDataFile(f.id),
+                style: { border: 'none', background: 'transparent', color: '#ff4d4f', cursor: 'pointer', fontWeight: 'bold' }
+              }, '删除')
+            ))
+          ) : h('div', { className: 'muted' }, '未上传文件，将使用预期模式')
+        ),
+
+        // 2. API & Prompt
+        h('div', { style: { display: 'flex', gap: 12, flexWrap: 'wrap' } },
+            h('div', { style: { flex: 1, minWidth: 200 } },
+                h('div', { style: { fontWeight: 'bold', marginBottom: 4 } }, '选择 API'),
+                h('select', { value: dataApiName, onChange: e => setDataApiName(e.target.value), style: { width: '100%' } },
+                    ...apis.map(a => h('option', { key: a.api_name, value: a.api_name }, a.api_name))
+                )
+            ),
+            h('div', { style: { flex: 2, minWidth: 300 } },
+                h('div', { style: { fontWeight: 'bold', marginBottom: 4, display: 'flex', justifyContent: 'space-between' } }, 
+                    h('span', null, 'Prompt 模板'),
+                    h('button', { className: 'secondary btn-small', onClick: () => setDataPromptTpl(dataMode === 'processing' ? DEFAULT_DATA_PROCESS_PROMPT : DEFAULT_DATA_PREDICT_PROMPT) }, '恢复默认')
+                ),
+                h('textarea', { 
+                    value: dataPromptTpl, 
+                    onChange: e => setDataPromptTpl(e.target.value), 
+                    rows: 10, 
+                    style: { width: '100%', fontSize: '14pt' } 
+                })
+            )
+        ),
+
+        // 3. Action
+        h('div', null,
+            h('button', { 
+                disabled: dataRunning, 
+                onClick: startDataAnalysis,
+                style: { width: '100%', padding: '12px', fontSize: '16px', fontWeight: 'bold', background: dataRunning ? '#ccc' : '#111827', color: '#fff', border: '1px solid #111827', cursor: dataRunning ? 'not-allowed' : 'pointer' } 
+            }, dataRunning ? '正在分析数据...' : '开始数据分析')
+        )
+      ),
+
+      // Result Display
+      dataResult ? h('div', { style: { marginTop: 20, borderTop: '1px solid #eee', paddingTop: 12 } },
+        h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 } },
+            h('h4', { style: { margin: 0 } }, '分析结果报告'),
+            h('div', { style: { display: 'flex', gap: 8 } },
+                h('button', { className: 'secondary btn-small', onClick: downloadDataMd }, '下载报告'),
+                h('button', { className: 'secondary btn-small', onClick: () => setDataExpanded(!dataExpanded) }, dataExpanded ? '折叠' : '展开')
+            )
+        ),
+        dataExpanded ? h('div', { className: 'markdown-body', style: { maxHeight: 600, overflow: 'auto', border: '1px solid #eee', padding: 24, borderRadius: 8, background: '#fff' } },
+            h(ReactMarkdown, { remarkPlugins: [remarkGfm] }, dataResult)
         ) : null
       ) : null
     ),
