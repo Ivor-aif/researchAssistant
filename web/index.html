@@ -132,6 +132,12 @@
     <main>
       <div id="root"></div>
     </main>
+    <script>
+      try {
+        var v = localStorage.getItem('api_base');
+        if (v) window.__API_BASE__ = v;
+      } catch (e) {}
+    </script>
     <script type="module" src="/app.js" onerror="document.getElementById('root').innerText='前端脚本加载失败，请检查网络或CDN访问（esm.sh）'"></script>
     <noscript><div class="card">请启用浏览器的JavaScript以使用本应用。</div></noscript>
   </body>

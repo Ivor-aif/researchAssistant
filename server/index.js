@@ -11,6 +11,15 @@ import directionsRoutes from './routes/directions.js'
 import configRoutes from './routes/config.js'
 import { requireAuth } from './middleware/auth.js'
 
+if (!process.env.JWT_SECRET) {
+  console.warn('Warning: JWT_SECRET not set, using default insecure secret for development')
+  process.env.JWT_SECRET = 'dev_secret_fallback_123'
+}
+if (!process.env.CONFIG_ENC_KEY) {
+  console.warn('Warning: CONFIG_ENC_KEY not set, using default insecure key for development')
+  process.env.CONFIG_ENC_KEY = '0000000000000000000000000000000000000000000000000000000000000000'
+}
+
 const app = express()
 app.use(helmet({ crossOriginEmbedderPolicy: false, contentSecurityPolicy: false }))
 app.use(cors({ origin: true }))
@@ -68,10 +77,28 @@ app.use((err, req, res, next) => {
 })
 
 const port = Number(process.env.PORT || 4000)
+
+process.on('exit', (code) => {
+  console.log(`Process exiting with code: ${code}`)
+})
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err)
+})
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason)
+})
+
 const server = app.listen(port, () => {
   console.log(`API server listening on http://localhost:${port}`)
 })
-server.setTimeout(600000) // 10 minutes timeout to allow long AI generation
+
+server.on('error', (e) => {
+  console.error('Server error:', e)
+})
+
+server.setTimeout(1800000) // 30 minutes timeout to allow long AI generation
 
 // Dev static serving for the front-end (keeps FE→BE separation at API boundary)
 app.use(express.static(path.resolve(process.cwd(), '..', 'web')))

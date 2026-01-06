@@ -29,19 +29,31 @@ router.get('/', query('projectId').optional().isString(), async (req, res) => {
     const proj = await db.projects.findOne({ _id: projectId })
     if (!proj || proj.user_id !== req.user.id) return res.status(404).json({ error: 'Project not found' })
     const rows = await db.directions.find({ project_id: projectId }).sort({ _id: -1 })
-    return res.json(rows.map(({ _id, project_id, name, description, status, created_at, updated_at, deep_tendency, deep_files }) => ({ 
-      id: _id, project_id, name, description, status: status || '未生成综述', created_at, updated_at,
-      deep_tendency: deep_tendency || '',
-      deep_files: deep_files || []
+    return res.json(rows.map((row) => ({ 
+      id: row._id,
+      project_id: row.project_id,
+      name: row.name,
+      description: row.description,
+      status: row.status || '未生成综述',
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      deep_tendency: row.deep_tendency || '',
+      deep_files: row.deep_files || [],
+      conclusion_files: row.conclusion_files || [],
+      paper_md: row.paper_md || '',
+      supplementary_md: row.supplementary_md || ''
     })))
   } else {
     const projs = await db.projects.find({ user_id: req.user.id })
     const projIds = projs.map(p => p._id)
     const rows = await db.directions.find({ project_id: { $in: projIds } }).sort({ _id: -1 })
-    return res.json(rows.map(({ _id, project_id, name, description, status, created_at, updated_at, deep_tendency, deep_files }) => ({ 
+    return res.json(rows.map(({ _id, project_id, name, description, status, created_at, updated_at, deep_tendency, deep_files, conclusion_files, paper_md, supplementary_md, ...row }) => ({ 
       id: _id, project_id, name, description, status: status || '未生成综述', created_at, updated_at,
       deep_tendency: deep_tendency || '',
-      deep_files: deep_files || []
+      deep_files: deep_files || [],
+      conclusion_files: conclusion_files || [],
+      paper_md: paper_md || '',
+      supplementary_md: supplementary_md || ''
     })))
   }
 })
@@ -68,7 +80,7 @@ router.put(
   param('id').isString().isLength({ min: 1 }),
   body('name').optional().isString().isLength({ min: 1, max: 128 }).trim(),
   body('description').optional().isString().isLength({ max: 2000 }),
-  body('status').optional().isString().isIn(['未生成综述','已生成综述']),
+  body('status').optional().isString(),
   body('review_md').optional().isString().isLength({ max: 500000 }),
   body('deep_tendency').optional().isString().isLength({ max: 50000 }),
   body('citation_stats').optional().isObject(),
@@ -104,6 +116,7 @@ router.put(
       citation_stats: row.citation_stats || null,
       deep_tendency: row.deep_tendency || '',
       deep_files: row.deep_files || [],
+      conclusion_files: row.conclusion_files || [],
       created_at: row.created_at, 
       updated_at: row.updated_at 
     })
@@ -112,6 +125,7 @@ router.put(
 
 router.post('/:id/files', param('id').isString(), upload.single('file'), async (req, res) => {
   const { id } = req.params
+  const type = req.query.type || 'deep'
   const dir = await db.directions.findOne({ _id: id })
   if (!dir) return res.status(404).json({ error: 'Direction not found' })
   const proj = await db.projects.findOne({ _id: dir.project_id })
@@ -120,7 +134,7 @@ router.post('/:id/files', param('id').isString(), upload.single('file'), async (
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' })
   
   const fileMeta = {
-    id: 'df_' + Math.random().toString(36).slice(2),
+    id: (type === 'conclusion' ? 'cf_' : 'df_') + Math.random().toString(36).slice(2),
     filename: req.file.originalname,
     path: req.file.filename, // Store just filename in uploadDir
     size: req.file.size,
@@ -128,18 +142,21 @@ router.post('/:id/files', param('id').isString(), upload.single('file'), async (
     created_at: new Date().toISOString()
   }
   
-  await db.directions.update({ _id: id }, { $push: { deep_files: fileMeta } })
+  const field = type === 'conclusion' ? 'conclusion_files' : 'deep_files'
+  await db.directions.update({ _id: id }, { $push: { [field]: fileMeta } })
   res.json(fileMeta)
 })
 
 router.delete('/:id/files/:fileId', param('id').isString(), param('fileId').isString(), async (req, res) => {
   const { id, fileId } = req.params
+  const type = req.query.type || 'deep'
   const dir = await db.directions.findOne({ _id: id })
   if (!dir) return res.status(404).json({ error: 'Direction not found' })
   const proj = await db.projects.findOne({ _id: dir.project_id })
   if (!proj || proj.user_id !== req.user.id) return res.status(404).json({ error: 'Permission denied' })
   
-  const files = dir.deep_files || []
+  const field = type === 'conclusion' ? 'conclusion_files' : 'deep_files'
+  const files = dir[field] || []
   const found = files.find(f => f.id === fileId)
   if (!found) return res.status(404).json({ error: 'File not found' })
   
@@ -150,7 +167,7 @@ router.delete('/:id/files/:fileId', param('id').isString(), param('fileId').isSt
     console.error('Delete file error', e)
   }
   
-  await db.directions.update({ _id: id }, { $pull: { deep_files: { id: fileId } } })
+  await db.directions.update({ _id: id }, { $pull: { [field]: { id: fileId } } })
   res.json({ ok: true })
 })
 
@@ -161,7 +178,7 @@ router.get('/:id/files/:fileId', param('id').isString(), param('fileId').isStrin
   const proj = await db.projects.findOne({ _id: dir.project_id })
   if (!proj || proj.user_id !== req.user.id) return res.status(404).json({ error: 'Permission denied' })
   
-  const files = dir.deep_files || []
+  const files = [...(dir.deep_files || []), ...(dir.conclusion_files || [])]
   const found = files.find(f => f.id === fileId)
   if (!found) return res.status(404).json({ error: 'File not found' })
   
@@ -184,3 +201,4 @@ router.delete('/:id', param('id').isString().isLength({ min: 1 }), async (req, r
 })
 
 export default router
+

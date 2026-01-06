@@ -1,9 +1,14 @@
 import Datastore from 'nedb-promises'
-import fs from 'fs'
 import path from 'path'
+import fs from 'fs'
+import { fileURLToPath } from 'url'
 
-const dataDir = path.join(process.cwd(), 'server', 'data')
-if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true })
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const dataDir = path.join(__dirname, 'data')
+
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir, { recursive: true })
+}
 
 export const users = Datastore.create({ filename: path.join(dataDir, 'users.db'), autoload: true })
 export const projects = Datastore.create({ filename: path.join(dataDir, 'projects.db'), autoload: true })

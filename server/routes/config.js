@@ -105,7 +105,7 @@ router.post('/ai/test', body('apiName').isString().isLength({ min: 3, max: 32 })
 
 router.post('/ai/prompt',
   body('apiName').isString().isLength({ min: 3, max: 32 }).matches(/^[A-Za-z0-9_-]+$/),
-  body('prompt').isString().isLength({ min: 1, max: 1000000 }),
+  body('prompt').isString().isLength({ min: 1, max: 50000000 }), // 50MB limit
   body('debug').optional().isBoolean(),
   body('requestId').optional().isString(),
   async (req, res) => {
@@ -436,9 +436,18 @@ router.post(
 
 router.get('/settings', async (req, res) => {
   const row = await db.userSettings.findOne({ user_id: req.user.id })
-  if (!row) return res.json({ theme: 'light', layout: 'default', timezone: 'Asia/Shanghai', config_json: null })
+  if (!row) return res.json({ theme: 'light', layout: 'default', timezone: 'Asia/Shanghai', config_json: null, author_name: '', affiliations: [], email: '', email_url: '' })
   if (!row.timezone) row.timezone = 'Asia/Shanghai'
-  res.json(row)
+  res.json({
+    theme: row.theme,
+    layout: row.layout,
+    timezone: row.timezone,
+    config_json: row.config_json,
+    author_name: row.author_name || '',
+    affiliations: row.affiliations || [],
+    email: row.email || '',
+    email_url: row.email_url || ''
+  })
 })
 
 router.post(
@@ -447,6 +456,11 @@ router.post(
   body('layout').optional().isString().isLength({ min: 1, max: 64 }),
   body('timezone').optional().isString().isLength({ min: 1, max: 64 }),
   body('config_json').optional().isString(),
+  body('author_name').optional().isString().isLength({ max: 64 }),
+  body('affiliations').optional().isArray(),
+  body('affiliations.*').optional().isString().isLength({ max: 200 }),
+  body('email').optional().isString().isLength({ max: 128 }),
+  body('email_url').optional().isString().isLength({ max: 512 }),
   async (req, res) => {
     const errors = validationResult(req)
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() })
@@ -460,10 +474,22 @@ router.post(
       }
     }
     const existing = await db.userSettings.findOne({ user_id: req.user.id })
+    const updateData = {
+      theme: req.body.theme ?? (existing?.theme || 'light'),
+      layout: req.body.layout ?? (existing?.layout || 'default'),
+      timezone: req.body.timezone ?? (existing?.timezone || 'Asia/Shanghai'),
+      config_json: req.body.config_json ?? (existing?.config_json || null),
+      author_name: req.body.author_name ?? (existing?.author_name || ''),
+      affiliations: req.body.affiliations ?? (existing?.affiliations || []),
+      email: req.body.email ?? (existing?.email || ''),
+      email_url: req.body.email_url ?? (existing?.email_url || ''),
+      updated_at: now
+    }
     if (existing) {
-      await db.userSettings.update({ user_id: req.user.id }, { $set: { theme: req.body.theme ?? existing.theme, layout: req.body.layout ?? existing.layout, timezone: req.body.timezone ?? existing.timezone ?? 'Asia/Shanghai', config_json: req.body.config_json ?? existing.config_json, updated_at: now } })
+      await db.userSettings.update({ user_id: req.user.id }, { $set: updateData })
     } else {
-      await db.userSettings.insert({ user_id: req.user.id, theme: req.body.theme || 'light', layout: req.body.layout || 'default', timezone: req.body.timezone || 'Asia/Shanghai', config_json: req.body.config_json || null, updated_at: now })
+      updateData.user_id = req.user.id
+      await db.userSettings.insert(updateData)
     }
     res.json({ ok: true })
   }

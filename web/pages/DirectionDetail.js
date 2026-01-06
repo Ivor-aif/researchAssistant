@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useRef } from 'https://esm.sh/react@18?dev'
 import ReactMarkdown from 'https://esm.sh/react-markdown@9.0.1?deps=react@18&dev'
 import remarkGfm from 'https://esm.sh/remark-gfm@4.0.0?deps=react@18&dev'
+import remarkMath from 'https://esm.sh/remark-math@6.0.0?deps=remark-parse@11.0.0&dev'
+import rehypeKatex from 'https://esm.sh/rehype-katex@7.0.0?deps=rehype-parse@9.0.0&dev'
 import { marked } from 'https://esm.sh/marked@12.0.0'
 
 import { api } from '../apiClient.js'
@@ -47,6 +49,64 @@ const DEFAULT_DATA_PROCESS_PROMPT = `你是资深数据分析师。基于提供�
 3. 生成清洗后的数据表（Markdown格式）。
 4. 进行统计检验或趋势分析。
 5. 得出基于数据的结论。`
+
+const DEFAULT_CONCLUSION_PROMPT = `你是资深学术专家。请基于前序研究步骤（综述、深度研究、数据分析）完成最后的“结论与讨论”部分。
+
+**任务流程**：
+1. **图表来源确认**：
+  - 若用户提供了图表/文件，请直接基于这些材料进行分析。
+  - 若未提供（预期模式），你需要先结合前序报告，逻辑推演并生成一系列维度多样、美观丰富、符合学术规范的“预期结果图表”（以Markdown表格、Mermaid图或详细文字描述呈现）。
+
+2. **结果分析**：
+  - 对图表结果进行深入解读，阐述其统计意义或理论价值。
+
+3. **结论 (Conclusion)**：
+  - 总结全文核心发现，回答研究问题。
+
+4. **讨论 (Discussion)**：
+  - 将结果与前人研究对比。
+  - 探讨研究局限性。
+  - 提出未来展望。
+
+**要求**：
+- 逻辑严密，论证充分。
+- 语言学术化，引用规范。
+- 输出为完整的Markdown报告。`
+
+const DEFAULT_PAPER_PROMPT = `你是资深学术论文写作者。请基于前序所有研究报告（综述、深度研究、数据分析、结论）撰写一篇完整的学术论文。
+
+**输入信息**：
+1. **作者信息**：
+  - 第一作者/通讯作者：{{userAuthorName}} (Email: {{userAuthorEmail}})
+  - 第二作者：{{aiAuthorName}} (AI)
+2. **致谢 (Acknowledgements)**：
+  - {{acknowledgements}}
+  - (请务必将 AI 作者 {{aiAuthorName}} 也加入致谢中)
+3. **研究内容**：
+  - 综述 (Review)
+  - 深度研究 (Deep Research)
+  - 数据分析 (Data Analysis)
+  - 结论与讨论 (Conclusion)
+
+**写作要求**：
+1. **格式**：严格遵循标准学术论文格式（Title, Abstract, Introduction, Methods, Results, Discussion, Conclusion, References, Acknowledgements）。
+2. **篇幅**：
+  - 正文 (Body) 应详实、完整，不要过度精简。请尽可能详细地描述方法、推导过程和讨论分析。
+  - 仅当内容极度冗长时（例如原始数据表或超长代码），才将其移至补充材料 (Supplementary Materials)。
+3. **风格**：与当前研究方向的学术风格一致，语言专业、严谨。
+4. **输出格式**：
+  - 请务必严格遵守以下自定义分隔符格式返回内容，不要使用 JSON：
+  
+[PAPER_BODY_START]
+(在此处填写论文正文的 Markdown 内容)
+[PAPER_BODY_END]
+
+[SUPPLEMENTARY_START]
+(在此处填写补充材料的 Markdown 内容，如果没有则留空)
+[SUPPLEMENTARY_END]
+
+  - 即使没有补充材料，也必须保留 [SUPPLEMENTARY_START] 和 [SUPPLEMENTARY_END] 标记。`
+
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -125,7 +185,58 @@ function DirectionDetailContent({ project, onExit }) {
   const [dataUploadActive, setDataUploadActive] = useState(false)
   const dataInputRef = useRef(null)
 
-  // Reload direction to get backend saved deepTendency/deepFiles
+  // Conclusion & Discussion State
+  const [conclusionFiles, setConclusionFiles] = useState([])
+  const [conclusionApiName, setConclusionApiName] = useState('')
+  const [conclusionPromptTpl, setConclusionPromptTpl] = useState(DEFAULT_CONCLUSION_PROMPT)
+  const [conclusionResult, setConclusionResult] = useState('')
+  const [conclusionRunning, setConclusionRunning] = useState(false)
+  const [conclusionExpanded, setConclusionExpanded] = useState(true)
+  const [conclusionUploadHover, setConclusionUploadHover] = useState(false)
+  const [conclusionUploadActive, setConclusionUploadActive] = useState(false)
+  const conclusionInputRef = useRef(null)
+
+  // Paper Writing State
+  const [paperApiName, setPaperApiName] = useState('')
+  const [paperPromptTpl, setPaperPromptTpl] = useState(DEFAULT_PAPER_PROMPT)
+  const [paperResult, setPaperResult] = useState('')
+  const [supplementaryResult, setSupplementaryResult] = useState('')
+  const [paperExtraReq, setPaperExtraReq] = useState('')
+  const [acknowledgements, setAcknowledgements] = useState([])
+  const [paperRunning, setPaperRunning] = useState(false)
+  const [paperExpanded, setPaperExpanded] = useState(true)
+  const [supplementaryExpanded, setSupplementaryExpanded] = useState(false)
+  const [userAuthorName, setUserAuthorName] = useState('')
+  const [userAuthorEmail, setUserAuthorEmail] = useState('')
+  
+  // Acknowledgement Modal State
+  const [ackModalOpen, setAckModalOpen] = useState(false)
+  const [ackType, setAckType] = useState('person')
+  const [ackForm, setAckForm] = useState({ name: '', help: '', fundNo: '', fundInfo: '' })
+
+  // Inject KaTeX CSS
+  useEffect(() => {
+    if (!document.getElementById('katex-css')) {
+        const link = document.createElement('link')
+        link.id = 'katex-css'
+        link.rel = 'stylesheet'
+        link.href = 'https://esm.sh/katex@0.16.9/dist/katex.min.css'
+        document.head.appendChild(link)
+    }
+  }, [])
+
+  // Load User Settings
+  useEffect(() => {
+    (async () => {
+        try {
+            const s = await api('/config/settings')
+            if (s.author_name) setUserAuthorName(s.author_name)
+            if (s.email) setUserAuthorEmail(s.email)
+        } catch {}
+    })()
+  }, [])
+
+  // Reload direction to get backend saved deepTendency/deepFiles/conclusionFiles
   useEffect(() => {
     (async () => {
         try {
@@ -134,6 +245,10 @@ function DirectionDetailContent({ project, onExit }) {
             if (fresh) {
                 if (fresh.deep_tendency) setDeepTendency(fresh.deep_tendency)
                 if (fresh.deep_files && fresh.deep_files.length > 0) setDeepFiles(fresh.deep_files)
+                if (fresh.conclusion_files && fresh.conclusion_files.length > 0) setConclusionFiles(fresh.conclusion_files)
+                if (fresh.paper_md) setPaperResult(fresh.paper_md)
+                if (fresh.supplementary_md) setSupplementaryResult(fresh.supplementary_md)
+                if (fresh.status) setStatus(fresh.status)
             }
         } catch {}
     })()
@@ -171,6 +286,9 @@ function DirectionDetailContent({ project, onExit }) {
           setSearchApiName(prev => prev || a[0].api_name)
           setReviewApiName(prev => prev || a[0].api_name)
           setDeepApiName(prev => prev || a[0].api_name)
+          setDataApiName(prev => prev || a[0].api_name)
+          setConclusionApiName(prev => prev || a[0].api_name)
+          setPaperApiName(prev => prev || a[0].api_name)
         }
         const s = await api('/config/sites'); setSites(s); 
         const sel = {}; s.forEach(it => sel[it.id] = true); 
@@ -196,6 +314,17 @@ function DirectionDetailContent({ project, onExit }) {
         else setDeepPromptTpl(DEFAULT_DEEP_PROMPT)
         if (saved.deepResult) setDeepResult(saved.deepResult)
         if (saved.deepFiles) setDeepFiles(saved.deepFiles)
+        if (saved.deepApiName) setDeepApiName(saved.deepApiName)
+
+        if (saved.dataApiName) setDataApiName(saved.dataApiName)
+        if (saved.dataPromptTpl) setDataPromptTpl(saved.dataPromptTpl)
+        if (saved.dataResult) setDataResult(saved.dataResult)
+        if (saved.dataFiles) setDataFiles(saved.dataFiles)
+
+        if (saved.conclusionApiName) setConclusionApiName(saved.conclusionApiName)
+        if (saved.conclusionPromptTpl) setConclusionPromptTpl(saved.conclusionPromptTpl)
+        if (saved.conclusionResult) setConclusionResult(saved.conclusionResult)
+        if (saved.conclusionFiles) setConclusionFiles(saved.conclusionFiles)
 
         if (saved.keywords) setKeywords(saved.keywords)
         if (saved.uploaded) setUploaded(saved.uploaded)
@@ -231,10 +360,24 @@ function DirectionDetailContent({ project, onExit }) {
       deepTendency,
       deepApiName,
       deepPromptTpl,
-      deepResult
+      deepResult,
+      deepFiles,
+      dataApiName,
+      dataPromptTpl,
+      dataResult,
+      dataFiles,
+      conclusionApiName,
+      conclusionPromptTpl,
+      conclusionResult,
+      conclusionFiles,
+      paperApiName,
+      paperPromptTpl,
+      paperResult,
+      supplementaryResult,
+      acknowledgements
     }
     try { localStorage.setItem('dir_' + d.id, JSON.stringify(data)) } catch {}
-  }, [searchApiName, reviewApiName, keywords, uploaded, results, siteSelected, manualSiteSelected, page, searchPromptTpl, reviewPromptTpl, reviewMd, deepTendency, deepApiName, deepPromptTpl, deepResult])
+  }, [searchApiName, reviewApiName, keywords, uploaded, results, siteSelected, manualSiteSelected, page, searchPromptTpl, reviewPromptTpl, reviewMd, deepTendency, deepApiName, deepPromptTpl, deepResult, deepFiles, dataApiName, dataPromptTpl, dataResult, dataFiles, conclusionApiName, conclusionPromptTpl, conclusionResult, conclusionFiles, paperApiName, paperPromptTpl, paperResult, supplementaryResult, acknowledgements])
 
   useEffect(() => {
     if (!uploadModalOpen) return
@@ -867,6 +1010,8 @@ function DirectionDetailContent({ project, onExit }) {
 
     setDeepRunning(true)
     const requestId = genReqId()
+    setStatus('已进入深度研究')
+    api('/directions/' + d.id, { method: 'PUT', body: { status: '已进入深度研究' } }).catch(() => {})
     try {
         const baseMeta = combinedList().filter(x => x.selected).map(x => ({
           title: x.title || '',
@@ -1027,6 +1172,345 @@ function DirectionDetailContent({ project, onExit }) {
         appendLog({ id: reqId, step: 'data_analysis_fail', error: e.message })
     } finally {
         setDataRunning(false)
+    }
+  }
+
+  // Conclusion & Discussion Handlers
+  async function onConclusionUpload(e) {
+    const files = Array.from(e.target.files || [])
+    if (files.length === 0) return
+    
+    const uploadedFiles = []
+    for (const file of files) {
+        const fd = new FormData()
+        fd.append('file', file)
+        try {
+            const res = await api(`/directions/${d.id}/files?type=conclusion`, { method: 'POST', body: fd })
+            res.file = file
+            uploadedFiles.push(res)
+        } catch (err) {
+            console.error('Upload failed', err)
+            setMsg('文件上传失败: ' + file.name)
+        }
+    }
+
+    if (uploadedFiles.length > 0) setConclusionFiles(prev => [...prev, ...uploadedFiles])
+    try { e.target.value = '' } catch {}
+  }
+
+  async function removeConclusionFile(id) {
+    if (!confirm('确定删除此文件吗？')) return
+    try {
+        await api(`/directions/${d.id}/files/${id}?type=conclusion`, { method: 'DELETE' })
+        setConclusionFiles(prev => prev.filter(x => x.id !== id))
+    } catch (e) {
+        setMsg('删除失败')
+    }
+  }
+  
+  function downloadConclusionMd() {
+    if (!conclusionResult) return
+    const blob = new Blob([conclusionResult], { type: 'text/markdown;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a'); a.href = url; a.download = `${name}-结论与讨论.md`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+
+  async function startConclusion() {
+    // We allow running conclusion even if Data Analysis is skipped, but usually it follows.
+    // However, the prompt says "Review, Deep Research Report, Analysis Result Report".
+    // If Analysis Result Report is missing, we might want to warn or just proceed.
+    // Let's assume Deep Research is mandatory.
+    if (!deepResult) { setMsg('请先完成深度研究（步骤3）'); return }
+    if (!conclusionApiName) { setMsg('请选择 API'); return }
+    
+    setConclusionRunning(true)
+    const reqId = genReqId()
+    
+    try {
+        const fileList = conclusionFiles.map((f, i) => {
+          const sz = typeof f.size === 'number' ? `${Math.round(f.size / 1024)}KB` : ''
+          return `${i + 1}. ${f.filename || f.title}${sz ? ` (${sz})` : ''}`
+        }).join('\n')
+        
+        const tpl = conclusionPromptTpl || DEFAULT_CONCLUSION_PROMPT
+        let context = `${tpl}\n\n`
+        context += `## Review (综述)\n${reviewMd || '(未提供)'}\n\n`
+        context += `## Deep Research Report (深度研究报告)\n${deepResult}\n\n`
+        context += `## Data Analysis Report (数据分析报告)\n${dataResult || '(未提供)'}\n\n`
+        
+        if (conclusionFiles.length > 0) {
+            context += `## User Provided Charts/Files (用户提供图表/文件)\n${fileList}\n\n`
+            context += `(Mode: User Provided Files Analysis)`
+        } else {
+            context += `(Mode: Expected Results Generation & Analysis)`
+        }
+        
+        const fd = new FormData()
+        fd.append('prompt', context)
+        
+        const token = localStorage.getItem('jwt')
+        const apiBase = (typeof window !== 'undefined' && (window.__API_BASE__ || `${window.location.origin}/api/v1`)) || 'http://localhost:4000/api/v1'
+
+        for (const f of conclusionFiles) {
+          if (f.file) {
+            fd.append('files', f.file, f.filename || f.file.name)
+          } else {
+             // Fetch from backend
+             try {
+                 const res = await fetch(`${apiBase}/directions/${d.id}/files/${f.id}?type=conclusion`, {
+                     headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                 })
+                 if (res.ok) {
+                     const blob = await res.blob()
+                     fd.append('files', blob, f.filename)
+                 }
+             } catch(e) {}
+          }
+        }
+        
+        appendLog({ id: reqId, step: 'conclusion_start', apiName: conclusionApiName, fileCount: conclusionFiles.length })
+        
+        const r = await api(`/config/ai/${encodeURIComponent(conclusionApiName)}/prompt-files?debug=1&requestId=${encodeURIComponent(reqId)}`, { 
+            method: 'POST', 
+            body: fd, 
+            timeoutMs: 600000 
+        })
+        
+        let answer = r && r.answer ? String(r.answer) : ''
+        let finalMd = answer
+        try {
+            const parsed = JSON.parse(answer)
+            if (parsed.choices && parsed.choices[0] && parsed.choices[0].message) {
+                finalMd = parsed.choices[0].message.content || ''
+            } else if (parsed.content) {
+                finalMd = parsed.content
+            }
+        } catch (e) {}
+        
+        const match = finalMd.match(/^```markdown\s*([\s\S]*?)\s*```$/) || finalMd.match(/^```\s*([\s\S]*?)\s*```$/)
+        if (match) finalMd = match[1]
+        
+        setConclusionResult(finalMd)
+        setMsg('结论与讨论生成完毕')
+    } catch (e) {
+        setMsg('生成失败: ' + e.message)
+        appendLog({ id: reqId, step: 'conclusion_fail', error: e.message })
+    } finally {
+        setConclusionRunning(false)
+    }
+  }
+
+  // Paper Writing Functions
+  function confirmAck() {
+    let text = ''
+    if (ackType === 'person') {
+        if (!ackForm.name) return setMsg('请输入人名')
+        text = `感谢 ${ackForm.name} ${ackForm.help ? `提供的${ackForm.help}` : ''}。`
+    } else {
+        if (!ackForm.fundNo) return setMsg('请输入基金号')
+        text = `本研究由 ${ackForm.fundInfo || '基金'} (基金号: ${ackForm.fundNo}) 支持。`
+    }
+    setAcknowledgements([...acknowledgements, text])
+    setAckModalOpen(false)
+  }
+
+  function addAcknowledgement() {
+    setAcknowledgements([...acknowledgements, ''])
+  }
+  function updateAcknowledgement(i, val) {
+    const newAck = [...acknowledgements]
+    newAck[i] = val
+    setAcknowledgements(newAck)
+  }
+  function removeAcknowledgement(i) {
+    const newAck = [...acknowledgements]
+    newAck.splice(i, 1)
+    setAcknowledgements(newAck)
+  }
+
+  async function downloadPdfContent(content, titleSuffix) {
+    if (!content) return
+    const htmlContent = marked.parse(content)
+    const iframe = document.createElement('iframe')
+    iframe.style.position = 'fixed'
+    iframe.style.right = '0'
+    iframe.style.bottom = '0'
+    iframe.style.width = '0'
+    iframe.style.height = '0'
+    iframe.style.border = '0'
+    document.body.appendChild(iframe)
+    const doc = iframe.contentWindow.document
+    doc.open()
+    doc.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>${name} - ${titleSuffix}</title>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.5.0/github-markdown-light.min.css">
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+          .markdown-body { box-sizing: border-box; min-width: 200px; max-width: 980px; margin: 0 auto; padding: 45px; }
+          @media print { .markdown-body { padding: 0; max-width: none; } @page { margin: 2cm; size: A4; } }
+        </style>
+      </head>
+      <body class="markdown-body">
+        <h1 style="text-align: center; margin-bottom: 40px;">${name} - ${titleSuffix}</h1>
+        ${htmlContent}
+      </body>
+      </html>
+    `)
+    doc.close()
+    setMsg('正在调用浏览器打印...')
+    setTimeout(() => {
+      try {
+        iframe.contentWindow.focus()
+        iframe.contentWindow.print()
+        setMsg('请在打印窗口中选择"另存为 PDF"')
+      } catch (e) {
+        setMsg('打印失败: ' + e.message)
+      } finally {
+        setTimeout(() => document.body.removeChild(iframe), 2000)
+      }
+    }, 1000)
+  }
+
+  function normalizeMarkdown(text) {
+    if (!text) return ''
+    // 1. Replace literal "\n" with newline
+    let normalized = text.replace(/\\n/g, '\n')
+    
+    // 2. Fix \\t -> \t
+    normalized = normalized.replace(/\\t/g, '\t')
+
+    // 3. Convert \[ ... \] to $$ ... $$ and \( ... \) to $ ... $
+    // We use lookbehind to ensure we don't match escaped brackets if any (though unlikely in this context)
+    // Note: We use a try-catch block for regex in case of older browser environments, though modern ones support lookbehind.
+    try {
+        // Convert \[ \] to $$ $$
+        // Match \[ that is not preceded by \ (to avoid matching \\[ which is line break)
+        // Actually, \\[ is line break. \[ is display math.
+        // In regex string: \\\[ matches \[
+        // (?<!\\) ensures no preceding backslash.
+        normalized = normalized.replace(/(?<!\\)\\\[/g, '$$$$')
+        normalized = normalized.replace(/(?<!\\)\\\]/g, '$$$$')
+        
+        // Convert \( \) to $ $
+        normalized = normalized.replace(/(?<!\\)\\\(/g, '$')
+        normalized = normalized.replace(/(?<!\\)\\\)/g, '$')
+    } catch (e) {
+        // Fallback for environments without lookbehind support
+        // Just replace blindly, might break \\[ in edge cases but better than no math.
+        normalized = normalized.replace(/\\\[/g, '$$$$')
+        normalized = normalized.replace(/\\\]/g, '$$$$')
+        normalized = normalized.replace(/\\\(/g, '$')
+        normalized = normalized.replace(/\\\)/g, '$')
+    }
+
+    // 4. Fix double escaped backslashes for common LaTeX commands
+    // e.g. \\frac -> \frac, \\begin -> \begin
+    // Match \\ followed by a letter.
+    // Caution: \\ followed by space is newline, we don't touch that.
+    normalized = normalized.replace(/\\\\([a-zA-Z])/g, '\\$1')
+
+    return normalized
+  }
+
+  async function startPaperWriting() {
+    if (!conclusionResult) { setMsg('请先完成结论与讨论（步骤3）'); return }
+    if (!paperApiName) { setMsg('请选择 API'); return }
+    
+    setPaperRunning(true)
+    setStatus('正在撰写论文')
+    api('/directions/' + d.id, { method: 'PUT', body: { status: '正在撰写论文' } }).catch(() => {})
+    const reqId = genReqId()
+    
+    try {
+        const ackText = acknowledgements.map((a, i) => `${i+1}. ${a}`).join('\n')
+        let prompt = paperPromptTpl || DEFAULT_PAPER_PROMPT
+        prompt = prompt.replace('{{userAuthorName}}', userAuthorName || 'Author')
+        prompt = prompt.replace('{{userAuthorEmail}}', userAuthorEmail || '')
+        prompt = prompt.replace(/{{aiAuthorName}}/g, paperApiName)
+        prompt = prompt.replace('{{acknowledgements}}', ackText || 'None')
+        
+        prompt += `\n\n## Review (综述)\n${reviewMd}\n\n`
+        prompt += `## Deep Research (深度研究)\n${deepResult}\n\n`
+        prompt += `## Data Analysis (数据分析)\n${dataResult || '(Skipped)'}\n\n`
+        prompt += `## Conclusion (结论)\n${conclusionResult}\n`
+        
+        if (paperExtraReq) {
+            prompt += `\n\n## Extra Requirements (额外需求)\n${paperExtraReq}\n`
+        }
+
+        appendLog({ id: reqId, step: 'paper_writing_start', apiName: paperApiName })
+        
+        const r = await api('/config/ai/prompt', { 
+            method: 'POST', 
+            body: { apiName: paperApiName, prompt, debug: true, requestId: reqId }, 
+            timeoutMs: 1800000 // 30 mins
+        })
+        
+        const answer = r && r.answer ? String(r.answer) : ''
+        
+        let body = ''
+        let supp = ''
+        
+        // Strategy 1: Delimiter Parsing (New Format)
+        const bodyMatch = answer.match(/\[PAPER_BODY_START\]([\s\S]*?)\[PAPER_BODY_END\]/)
+        if (bodyMatch) {
+            body = bodyMatch[1].trim()
+            const suppMatch = answer.match(/\[SUPPLEMENTARY_START\]([\s\S]*?)\[SUPPLEMENTARY_END\]/)
+            if (suppMatch) supp = suppMatch[1].trim()
+        } else {
+            // Strategy 2: JSON Parsing (Legacy/Fallback)
+            let parsed = null
+            try {
+                parsed = JSON.parse(answer)
+            } catch (e) {
+                const match = answer.match(/```json\s*([\s\S]*?)\s*```/) || answer.match(/```\s*([\s\S]*?)\s*```/)
+                if (match) try { parsed = JSON.parse(match[1]) } catch {}
+            }
+            
+            if (parsed && (parsed.body || parsed.supplementary)) {
+                body = parsed.body || ''
+                supp = parsed.supplementary || ''
+            } else {
+                // Strategy 3: Raw Content Fallback
+                // If the content looks like it contains the JSON structure but parsing failed (e.g. user issue), try to rescue
+                let content = answer
+                
+                // If it's wrapped in code blocks, strip them
+                const m = content.match(/^```(?:json|markdown)?\s*([\s\S]*?)\s*```$/)
+                if (m) content = m[1]
+                
+                // If the content is a JSON string literal (e.g. starts with " and contains escaped chars), unescape it
+                if (content.trim().startsWith('"') && content.trim().endsWith('"')) {
+                    try {
+                        const unescaped = JSON.parse(content)
+                        if (typeof unescaped === 'string') content = unescaped
+                    } catch {}
+                }
+                
+                // Final check: if it looks like a JSON object but we failed to parse it earlier, maybe it was double escaped?
+                // Just use the content as is for now.
+                body = content
+            }
+        }
+        
+        setPaperResult(normalizeMarkdown(body))
+        setSupplementaryResult(normalizeMarkdown(supp))
+        
+        await api(`/directions/${d.id}`, { 
+            method: 'PUT', 
+            body: { paper_md: normalizeMarkdown(body), supplementary_md: normalizeMarkdown(supp), status: '论文撰写完成' } 
+        })
+        
+        setStatus('论文撰写完成')
+        setMsg('论文撰写完成')
+    } catch (e) {
+        setMsg('撰写失败: ' + e.message)
+        appendLog({ id: reqId, step: 'paper_writing_fail', error: e.message })
+    } finally {
+        setPaperRunning(false)
     }
   }
 
@@ -1215,7 +1699,7 @@ function DirectionDetailContent({ project, onExit }) {
       ),
       reviewExpanded ? h('div', null,
         h('div', { className: 'markdown-body', style: { maxHeight: 600, overflow: 'auto', border: '1px solid #eee', padding: 24, borderRadius: 8, background: '#fff' } },
-          h(ReactMarkdown, { remarkPlugins: [remarkGfm] }, reviewMd)
+          h(ReactMarkdown, { remarkPlugins: [remarkGfm, remarkMath], rehypePlugins: [rehypeKatex] }, reviewMd)
         )
       ) : null
     ) : null,
@@ -1249,7 +1733,7 @@ function DirectionDetailContent({ project, onExit }) {
               h('span', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: 8 } }, f.title || f.filename),
               h('button', { 
                 onClick: () => removeDeepFile(f.id),
-                style: { border: 'none', background: 'transparent', color: '#ff4d4f', cursor: 'pointer', fontWeight: 'bold' }
+                style: { border: 'none', background: 'transparent', color: '#ff4d4f', cursor: 'pointer', fontWeight: 'bold', padding: '0 0px' }
               }, '删除')
             ))
           ) : h('div', { className: 'muted' }, '暂无文献，请上传 PDF/MD')
@@ -1309,118 +1793,361 @@ function DirectionDetailContent({ project, onExit }) {
             )
         ),
         deepExpanded ? h('div', { className: 'markdown-body', style: { maxHeight: 600, overflow: 'auto', border: '1px solid #eee', padding: 24, borderRadius: 8, background: '#fff' } },
-            h(ReactMarkdown, { remarkPlugins: [remarkGfm] }, deepResult)
+            h(ReactMarkdown, { remarkPlugins: [remarkGfm, remarkMath], rehypePlugins: [rehypeKatex] }, deepResult)
         ) : null
-      ) : null
+      ) : null,
+
+      // Data Analysis Section (Appended to Deep Research)
+      h('div', { style: { marginTop: 24, borderTop: '1px solid #eee', paddingTop: 16 } },
+        h('h4', { style: { margin: '0 0 12px 0' } }, '数据处理/结果预测'),
+        h('div', { className: 'muted', style: { marginBottom: 12 } }, '基于深度研究报告，进行数据预测或处理用户上传的数据。'),
+        
+        h('div', { style: { display: 'flex', flexDirection: 'column', gap: 16 } },
+          
+          // 1. File Upload & Mode
+          h('div', { style: { border: '1px solid #eee', padding: 12, borderRadius: 8, background: '#fafafa' } },
+            h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 } },
+              h('div', { style: { fontWeight: 'bold' } }, '数据文件 (CSV/TXT/MD)'),
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: 12 } },
+                  h('div', { 
+                      style: { padding: '4px 8px', borderRadius: 4, background: dataMode === 'processing' ? '#e6f7ff' : '#fff7e6', color: dataMode === 'processing' ? '#1890ff' : '#fa8c16', border: `1px solid ${dataMode === 'processing' ? '#91d5ff' : '#ffd591'}`, fontSize: '0.9em' } 
+                  }, dataMode === 'processing' ? '模式：数据处理' : '模式：预期结果'),
+                  h('div', { 
+                      style: { position: 'relative', display: 'inline-block' }
+                  },
+                      h('button', { 
+                          onClick: () => dataInputRef.current && dataInputRef.current.click(),
+                          onMouseEnter: () => setDataUploadHover(true),
+                          onMouseLeave: () => { setDataUploadHover(false); setDataUploadActive(false) },
+                          onMouseDown: () => setDataUploadActive(true),
+                          onMouseUp: () => setDataUploadActive(false),
+                          style: { 
+                              padding: '6px 12px', 
+                              border: '1px solid #d9d9d9', 
+                              borderRadius: '4px', 
+                              background: dataUploadActive ? '#1f2937' : dataUploadHover ? '#374151' : '#111827', 
+                              color: '#fff', 
+                              cursor: 'pointer',
+                              transform: dataUploadActive ? 'scale(0.98)' : 'none',
+                              transition: 'background-color 0.2s, transform 0.1s'
+                          } 
+                      }, '上传数据'),
+                      h('input', { 
+                          ref: dataInputRef,
+                          type: 'file', 
+                          multiple: true, 
+                          accept: '.csv,.txt,.md', 
+                          onChange: onDataUpload, 
+                          title: '上传数据文件',
+                          style: { display: 'none' } 
+                      })
+                  )
+              )
+            ),
+            
+            dataFiles.length > 0 ? h('div', { style: { maxHeight: 200, overflow: 'auto' } },
+              dataFiles.map(f => h('div', { key: f.id, style: { display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid #f0f0f0', fontSize: '0.9em' } },
+                h('span', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: 8 } }, `${f.name} (${Math.round(f.size/1024)}KB)`),
+                h('button', { 
+                  onClick: () => removeDataFile(f.id),
+                  style: { border: 'none', background: 'transparent', color: '#ff4d4f', cursor: 'pointer', fontWeight: 'bold' }
+                }, '删除')
+              ))
+            ) : h('div', { className: 'muted' }, '未上传文件，将使用预期模式')
+          ),
+
+          // 2. API & Prompt
+          h('div', { style: { display: 'flex', gap: 12, flexWrap: 'wrap' } },
+              h('div', { style: { flex: 1, minWidth: 200 } },
+                  h('div', { style: { fontWeight: 'bold', marginBottom: 4 } }, '选择 API'),
+                  h('select', { value: dataApiName, onChange: e => setDataApiName(e.target.value), style: { width: '100%' } },
+                      ...apis.map(a => h('option', { key: a.api_name, value: a.api_name }, a.api_name))
+                  )
+              ),
+              h('div', { style: { flex: 2, minWidth: 300 } },
+                  h('div', { style: { fontWeight: 'bold', marginBottom: 4, display: 'flex', justifyContent: 'space-between' } }, 
+                      h('span', null, 'Prompt 模板'),
+                      h('button', { className: 'secondary btn-small', onClick: () => setDataPromptTpl(dataMode === 'processing' ? DEFAULT_DATA_PROCESS_PROMPT : DEFAULT_DATA_PREDICT_PROMPT) }, '恢复默认')
+                  ),
+                  h('textarea', { 
+                      value: dataPromptTpl, 
+                      onChange: e => setDataPromptTpl(e.target.value), 
+                      rows: 10, 
+                      style: { width: '100%', fontSize: '14pt' } 
+                  })
+              )
+          ),
+
+          // 3. Action
+          h('div', null,
+              h('button', { 
+                  disabled: dataRunning, 
+                  onClick: startDataAnalysis,
+                  style: { width: '100%', padding: '12px', fontSize: '16px', fontWeight: 'bold', background: dataRunning ? '#ccc' : '#111827', color: '#fff', border: '1px solid #111827', cursor: dataRunning ? 'not-allowed' : 'pointer' } 
+              }, dataRunning ? '正在分析数据...' : '开始数据分析')
+          )
+        ),
+
+        // Result Display
+        dataResult ? h('div', { style: { marginTop: 20, borderTop: '1px solid #eee', paddingTop: 12 } },
+          h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 } },
+              h('h4', { style: { margin: 0 } }, '分析结果报告'),
+              h('div', { style: { display: 'flex', gap: 8 } },
+                  h('button', { className: 'secondary btn-small', onClick: downloadDataMd }, '下载报告'),
+                  h('button', { className: 'secondary btn-small', onClick: () => setDataExpanded(!dataExpanded) }, dataExpanded ? '折叠' : '展开')
+              )
+          ),
+          dataExpanded ? h('div', { className: 'markdown-body', style: { maxHeight: 600, overflow: 'auto', border: '1px solid #eee', padding: 24, borderRadius: 8, background: '#fff' } },
+              h(ReactMarkdown, { remarkPlugins: [remarkGfm, remarkMath], rehypePlugins: [rehypeKatex] }, dataResult)
+          ) : null
+        ) : null,
+
+        // Conclusion Section (Appended to Deep Research)
+        h('div', { style: { marginTop: 24, borderTop: '1px solid #eee', paddingTop: 16 } },
+          h('h4', { style: { margin: '0 0 12px 0' } }, '结论与讨论'),
+          h('div', { className: 'muted', style: { marginBottom: 12 } }, '基于前序所有步骤及可选的图表文件，生成最终结论与讨论。'),
+          
+          h('div', { style: { display: 'flex', flexDirection: 'column', gap: 16 } },
+            
+            // 1. File Upload
+            h('div', { style: { border: '1px solid #eee', padding: 12, borderRadius: 8, background: '#fafafa' } },
+              h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 } },
+                h('div', { style: { fontWeight: 'bold' } }, '图表/文件上传 (可选)'),
+                h('div', { style: { display: 'flex', alignItems: 'center', gap: 12 } },
+                    h('div', { 
+                        style: { padding: '4px 8px', borderRadius: 4, background: conclusionFiles.length > 0 ? '#e6f7ff' : '#fff7e6', color: conclusionFiles.length > 0 ? '#1890ff' : '#fa8c16', border: `1px solid ${conclusionFiles.length > 0 ? '#91d5ff' : '#ffd591'}`, fontSize: '0.9em' } 
+                    }, conclusionFiles.length > 0 ? '模式：用户图表分析' : '模式：预期结果生成'),
+                    h('div', { 
+                        style: { position: 'relative', display: 'inline-block' }
+                    },
+                        h('button', { 
+                            onClick: () => conclusionInputRef.current && conclusionInputRef.current.click(),
+                            onMouseEnter: () => setConclusionUploadHover(true),
+                            onMouseLeave: () => { setConclusionUploadHover(false); setConclusionUploadActive(false) },
+                            onMouseDown: () => setConclusionUploadActive(true),
+                            onMouseUp: () => setConclusionUploadActive(false),
+                            style: { 
+                                padding: '6px 12px', 
+                                border: '1px solid #d9d9d9', 
+                                borderRadius: '4px', 
+                                background: conclusionUploadActive ? '#1f2937' : conclusionUploadHover ? '#374151' : '#111827', 
+                                color: '#fff', 
+                                cursor: 'pointer',
+                                transform: conclusionUploadActive ? 'scale(0.98)' : 'none',
+                                transition: 'background-color 0.2s, transform 0.1s'
+                            } 
+                        }, '上传文件'),
+                        h('input', { 
+                            ref: conclusionInputRef,
+                            type: 'file', 
+                            multiple: true, 
+                            accept: '.png,.jpg,.jpeg,.pdf,.md,.csv,.txt', 
+                            onChange: onConclusionUpload, 
+                            title: '上传图表或数据文件',
+                            style: { display: 'none' } 
+                        })
+                    )
+                )
+              ),
+              
+              conclusionFiles.length > 0 ? h('div', { style: { maxHeight: 200, overflow: 'auto' } },
+                conclusionFiles.map(f => h('div', { key: f.id, style: { display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid #f0f0f0', fontSize: '0.9em' } },
+                  h('span', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: 8 } }, `${f.filename || f.title} (${f.size ? Math.round(f.size/1024) : 0}KB)`),
+                  h('button', { 
+                    onClick: () => removeConclusionFile(f.id),
+                    style: { border: 'none', background: 'transparent', color: '#ff4d4f', cursor: 'pointer', fontWeight: 'bold' }
+                  }, '删除')
+                ))
+              ) : h('div', { className: 'muted' }, '未上传文件，将进入预期模式 (AI 生成图表)')
+            ),
+
+            // 2. API & Prompt
+            h('div', { style: { display: 'flex', gap: 12, flexWrap: 'wrap' } },
+                h('div', { style: { flex: 1, minWidth: 200 } },
+                    h('div', { style: { fontWeight: 'bold', marginBottom: 4 } }, '选择 API'),
+                    h('select', { value: conclusionApiName, onChange: e => setConclusionApiName(e.target.value), style: { width: '100%' } },
+                        ...apis.map(a => h('option', { key: a.api_name, value: a.api_name }, a.api_name))
+                    )
+                ),
+                h('div', { style: { flex: 2, minWidth: 300 } },
+                    h('div', { style: { fontWeight: 'bold', marginBottom: 4, display: 'flex', justifyContent: 'space-between' } }, 
+                        h('span', null, 'Prompt 模板'),
+                        h('button', { className: 'secondary btn-small', onClick: () => setConclusionPromptTpl(DEFAULT_CONCLUSION_PROMPT) }, '恢复默认')
+                    ),
+                    h('textarea', { 
+                        value: conclusionPromptTpl, 
+                        onChange: e => setConclusionPromptTpl(e.target.value), 
+                        rows: 10, 
+                        style: { width: '100%', fontSize: '14pt' } 
+                    })
+                )
+            ),
+
+            // 3. Action
+            h('div', null,
+                h('button', { 
+                    disabled: conclusionRunning, 
+                    onClick: startConclusion,
+                    style: { width: '100%', padding: '12px', fontSize: '16px', fontWeight: 'bold', background: conclusionRunning ? '#ccc' : '#111827', color: '#fff', border: '1px solid #111827', cursor: conclusionRunning ? 'not-allowed' : 'pointer' } 
+                }, conclusionRunning ? '正在生成结论与讨论...' : '开始生成')
+            )
+          ),
+
+          // Result Display
+          conclusionResult ? h('div', { style: { marginTop: 20, borderTop: '1px solid #eee', paddingTop: 12 } },
+            h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 } },
+                h('h4', { style: { margin: 0 } }, '结论与讨论报告'),
+                h('div', { style: { display: 'flex', gap: 8 } },
+                    h('button', { className: 'secondary btn-small', onClick: downloadConclusionMd }, '下载报告'),
+                    h('button', { className: 'secondary btn-small', onClick: () => setConclusionExpanded(!conclusionExpanded) }, conclusionExpanded ? '折叠' : '展开')
+                )
+            ),
+            conclusionExpanded ? h('div', { className: 'markdown-body', style: { maxHeight: 600, overflow: 'auto', border: '1px solid #eee', padding: 24, borderRadius: 8, background: '#fff' } },
+                h(ReactMarkdown, { remarkPlugins: [remarkGfm, remarkMath], rehypePlugins: [rehypeKatex] }, conclusionResult)
+            ) : null
+          ) : null
+        )
+      )
     ),
 
-    // Step 4: Data Analysis
+    // Step 4: Paper Writing
     h('div', { className: 'card', style: { marginTop: 12 } },
-      h('h3', null, '第四步：数据处理/结果预测'),
-      h('div', { className: 'muted', style: { marginBottom: 12 } }, '基于深度研究报告，进行数据预测或处理用户上传的数据。'),
+      h('h3', null, '第四步：论文撰写'),
+      h('div', { className: 'muted', style: { marginBottom: 12 } }, '基于前序所有报告，撰写完整学术论文。'),
       
       h('div', { style: { display: 'flex', flexDirection: 'column', gap: 16 } },
         
-        // 1. File Upload & Mode
+        // 1. Author Info Display (Hidden per user request)
+        /*
         h('div', { style: { border: '1px solid #eee', padding: 12, borderRadius: 8, background: '#fafafa' } },
-          h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 } },
-            h('div', { style: { fontWeight: 'bold' } }, '数据文件 (CSV/TXT/MD)'),
-            h('div', { style: { display: 'flex', alignItems: 'center', gap: 12 } },
-                h('div', { 
-                    style: { padding: '4px 8px', borderRadius: 4, background: dataMode === 'processing' ? '#e6f7ff' : '#fff7e6', color: dataMode === 'processing' ? '#1890ff' : '#fa8c16', border: `1px solid ${dataMode === 'processing' ? '#91d5ff' : '#ffd591'}`, fontSize: '0.9em' } 
-                }, dataMode === 'processing' ? '模式：数据处理' : '模式：预期结果'),
-                h('div', { 
-                    style: { position: 'relative', display: 'inline-block' }
-                },
-                    h('button', { 
-                        onClick: () => dataInputRef.current && dataInputRef.current.click(),
-                        onMouseEnter: () => setDataUploadHover(true),
-                        onMouseLeave: () => { setDataUploadHover(false); setDataUploadActive(false) },
-                        onMouseDown: () => setDataUploadActive(true),
-                        onMouseUp: () => setDataUploadActive(false),
-                        style: { 
-                            padding: '6px 12px', 
-                            border: '1px solid #d9d9d9', 
-                            borderRadius: '4px', 
-                            background: dataUploadActive ? '#1f2937' : dataUploadHover ? '#374151' : '#111827', 
-                            color: '#fff', 
-                            cursor: 'pointer',
-                            transform: dataUploadActive ? 'scale(0.98)' : 'none',
-                            transition: 'background-color 0.2s, transform 0.1s'
-                        } 
-                    }, '上传数据'),
+            h('div', { style: { fontWeight: 'bold', marginBottom: 8 } }, '署名信息 (自动引用)'),
+            h('div', { style: { fontSize: '0.9em' } }, `第一作者/通讯作者: ${userAuthorName || '(未设置，请在设置页配置)'}`),
+            h('div', { style: { fontSize: '0.9em' } }, `第二作者: ${paperApiName || '(待选择)'} (AI)`)
+        ),
+        */
+
+        // 2. Acknowledgements
+        h('div', { style: { border: '1px solid #eee', padding: 12, borderRadius: 8, background: '#fafafa' } },
+            h('div', { style: { fontWeight: 'bold', marginBottom: 8 } }, '致谢 (Acknowledgements)'),
+            h('div', { className: 'muted', style: { fontSize: '0.85em', marginBottom: 8 } }, '请添加基金号、帮助过的人等信息 (AI作者将自动添加)'),
+            ...acknowledgements.map((ack, i) => 
+                h('div', { key: i, style: { display: 'flex', width: '100%', marginBottom: 8 } },
                     h('input', { 
-                        ref: dataInputRef,
-                        type: 'file', 
-                        multiple: true, 
-                        accept: '.csv,.txt,.md', 
-                        onChange: onDataUpload, 
-                        title: '上传数据文件',
-                        style: { display: 'none' } 
-                    })
+                        value: ack, 
+                        onChange: e => updateAcknowledgement(i, e.target.value), 
+                        placeholder: '例如：This work was supported by...', 
+                        style: { flex: 1, padding: 6 } 
+                    }),
+                    h('button', { onClick: () => removeAcknowledgement(i), style: { marginLeft: 8, color: '#ff4d4f' } }, '删除')
                 )
-            )
-          ),
-          
-          dataFiles.length > 0 ? h('div', { style: { maxHeight: 200, overflow: 'auto' } },
-            dataFiles.map(f => h('div', { key: f.id, style: { display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid #f0f0f0', fontSize: '0.9em' } },
-              h('span', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: 8 } }, `${f.name} (${Math.round(f.size/1024)}KB)`),
-              h('button', { 
-                onClick: () => removeDataFile(f.id),
-                style: { border: 'none', background: 'transparent', color: '#ff4d4f', cursor: 'pointer', fontWeight: 'bold' }
-              }, '删除')
-            ))
-          ) : h('div', { className: 'muted' }, '未上传文件，将使用预期模式')
+            ),
+            h('button', { onClick: () => { setAckModalOpen(true); setAckForm({ name: '', help: '', fundNo: '', fundInfo: '' }); setAckType('person'); }, className: 'secondary btn-small' }, '+ 添加条目')
         ),
 
-        // 2. API & Prompt
+        // 3. API & Prompt
         h('div', { style: { display: 'flex', gap: 12, flexWrap: 'wrap' } },
             h('div', { style: { flex: 1, minWidth: 200 } },
                 h('div', { style: { fontWeight: 'bold', marginBottom: 4 } }, '选择 API'),
-                h('select', { value: dataApiName, onChange: e => setDataApiName(e.target.value), style: { width: '100%' } },
+                h('select', { value: paperApiName, onChange: e => setPaperApiName(e.target.value), style: { width: '100%' } },
                     ...apis.map(a => h('option', { key: a.api_name, value: a.api_name }, a.api_name))
                 )
             ),
             h('div', { style: { flex: 2, minWidth: 300 } },
                 h('div', { style: { fontWeight: 'bold', marginBottom: 4, display: 'flex', justifyContent: 'space-between' } }, 
                     h('span', null, 'Prompt 模板'),
-                    h('button', { className: 'secondary btn-small', onClick: () => setDataPromptTpl(dataMode === 'processing' ? DEFAULT_DATA_PROCESS_PROMPT : DEFAULT_DATA_PREDICT_PROMPT) }, '恢复默认')
+                    h('button', { className: 'secondary btn-small', onClick: () => setPaperPromptTpl(DEFAULT_PAPER_PROMPT) }, '恢复默认')
                 ),
                 h('textarea', { 
-                    value: dataPromptTpl, 
-                    onChange: e => setDataPromptTpl(e.target.value), 
+                    value: paperPromptTpl, 
+                    onChange: e => setPaperPromptTpl(e.target.value), 
                     rows: 10, 
                     style: { width: '100%', fontSize: '14pt' } 
                 })
             )
         ),
 
-        // 3. Action
+        // 3.5 Extra Requirements
+        h('div', { style: { marginBottom: 12 } },
+            h('div', { style: { fontWeight: 'bold', marginBottom: 4 } }, '额外需求 (Extra Requirements)'),
+            h('textarea', {
+                placeholder: '例如：请重点讨论... / 请生成 Letter 格式 / 请增加关于...的对比',
+                value: paperExtraReq,
+                onChange: e => setPaperExtraReq(e.target.value),
+                rows: 3,
+                style: { width: '100%', fontSize: '14px', padding: 8, borderColor: '#d9d9d9', borderRadius: 6 }
+            })
+        ),
+
+        // 4. Action
         h('div', null,
             h('button', { 
-                disabled: dataRunning, 
-                onClick: startDataAnalysis,
-                style: { width: '100%', padding: '12px', fontSize: '16px', fontWeight: 'bold', background: dataRunning ? '#ccc' : '#111827', color: '#fff', border: '1px solid #111827', cursor: dataRunning ? 'not-allowed' : 'pointer' } 
-            }, dataRunning ? '正在分析数据...' : '开始数据分析')
+                disabled: paperRunning, 
+                onClick: startPaperWriting,
+                style: { width: '100%', padding: '12px', fontSize: '16px', fontWeight: 'bold', background: paperRunning ? '#ccc' : '#111827', color: '#fff', border: '1px solid #111827', cursor: paperRunning ? 'not-allowed' : 'pointer' } 
+            }, paperRunning ? '正在撰写论文...' : '开始撰写')
         )
       ),
 
       // Result Display
-      dataResult ? h('div', { style: { marginTop: 20, borderTop: '1px solid #eee', paddingTop: 12 } },
+      paperResult ? h('div', { style: { marginTop: 20, borderTop: '1px solid #eee', paddingTop: 12 } },
         h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 } },
-            h('h4', { style: { margin: 0 } }, '分析结果报告'),
+            h('h4', { style: { margin: 0 } }, '论文正文 (Paper Body)'),
             h('div', { style: { display: 'flex', gap: 8 } },
-                h('button', { className: 'secondary btn-small', onClick: downloadDataMd }, '下载报告'),
-                h('button', { className: 'secondary btn-small', onClick: () => setDataExpanded(!dataExpanded) }, dataExpanded ? '折叠' : '展开')
+                h('button', { className: 'secondary btn-small', onClick: () => downloadPdfContent(paperResult, 'Paper_Body') }, '下载PDF'),
+                h('button', { className: 'secondary btn-small', onClick: () => setPaperExpanded(!paperExpanded) }, paperExpanded ? '折叠' : '展开')
             )
         ),
-        dataExpanded ? h('div', { className: 'markdown-body', style: { maxHeight: 600, overflow: 'auto', border: '1px solid #eee', padding: 24, borderRadius: 8, background: '#fff' } },
-            h(ReactMarkdown, { remarkPlugins: [remarkGfm] }, dataResult)
+        paperExpanded ? h('div', { className: 'markdown-body', style: { maxHeight: 'none', overflow: 'visible', border: '1px solid #eee', padding: 40, borderRadius: 8, background: '#fff', fontSize: '13px', lineHeight: '1.6' } },
+            h(ReactMarkdown, { remarkPlugins: [remarkGfm, remarkMath], rehypePlugins: [rehypeKatex] }, paperResult)
+        ) : null
+      ) : null,
+
+      supplementaryResult ? h('div', { style: { marginTop: 20, borderTop: '1px solid #eee', paddingTop: 12 } },
+        h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 } },
+            h('h4', { style: { margin: 0 } }, '补充材料 (Supplementary Materials)'),
+            h('div', { style: { display: 'flex', gap: 8 } },
+                h('button', { className: 'secondary btn-small', onClick: () => downloadPdfContent(supplementaryResult, 'Supplementary') }, '下载PDF'),
+                h('button', { className: 'secondary btn-small', onClick: () => setSupplementaryExpanded(!supplementaryExpanded) }, supplementaryExpanded ? '折叠' : '展开')
+            )
+        ),
+        supplementaryExpanded ? h('div', { className: 'markdown-body', style: { maxHeight: 'none', overflow: 'visible', border: '1px solid #eee', padding: 40, borderRadius: 8, background: '#fff', fontSize: '13px', lineHeight: '1.6' } },
+            h(ReactMarkdown, { remarkPlugins: [remarkGfm, remarkMath], rehypePlugins: [rehypeKatex] }, supplementaryResult)
         ) : null
       ) : null
     ),
     
     msg ? h('div', { className: 'muted', style: { marginTop: 8 } }, msg) : null,
+
+    ackModalOpen ? h('div', { onClick: () => setAckModalOpen(false), style: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' } },
+      h('div', { onClick: e => e.stopPropagation(), style: { background: '#fff', padding: 24, borderRadius: 8, width: 500, display: 'flex', flexDirection: 'column', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' } },
+        h('h3', { style: { marginTop: 0, marginBottom: 16 } }, '添加致谢/基金'),
+        h('div', { style: { marginBottom: 16 } },
+            h('label', { style: { marginRight: 16, cursor: 'pointer' } },
+                h('input', { type: 'radio', name: 'ackType', checked: ackType === 'person', onChange: () => setAckType('person'), style: { marginRight: 4 } }),
+                ' 人名'
+            ),
+            h('label', { style: { cursor: 'pointer' } },
+                h('input', { type: 'radio', name: 'ackType', checked: ackType === 'fund', onChange: () => setAckType('fund'), style: { marginRight: 4 } }),
+                ' 基金'
+            )
+        ),
+        ackType === 'person' ? h('div', null,
+            h('div', { style: { marginBottom: 8 } }, '人名:'),
+            h('input', { style: { width: '100%', marginBottom: 12, padding: 8, boxSizing: 'border-box' }, value: ackForm.name, onChange: e => setAckForm({...ackForm, name: e.target.value}) }),
+            h('div', { style: { marginBottom: 8 } }, '帮助信息:'),
+            h('input', { style: { width: '100%', marginBottom: 12, padding: 8, boxSizing: 'border-box' }, value: ackForm.help, onChange: e => setAckForm({...ackForm, help: e.target.value}) })
+        ) : h('div', null,
+            h('div', { style: { marginBottom: 8 } }, '基金号:'),
+            h('input', { style: { width: '100%', marginBottom: 12, padding: 8, boxSizing: 'border-box' }, value: ackForm.fundNo, onChange: e => setAckForm({...ackForm, fundNo: e.target.value}) }),
+            h('div', { style: { marginBottom: 8 } }, '其他基金信息:'),
+            h('input', { style: { width: '100%', marginBottom: 12, padding: 8, boxSizing: 'border-box' }, value: ackForm.fundInfo, onChange: e => setAckForm({...ackForm, fundInfo: e.target.value}) })
+        ),
+        h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 12 } },
+            h('button', { onClick: () => setAckModalOpen(false) }, '取消'),
+            h('button', { onClick: confirmAck, style: { background: '#111827', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 4, cursor: 'pointer' } }, '确认')
+        )
+      )
+    ) : null,
 
     uploadModalOpen ? h('div', { onClick: () => setUploadModalOpen(false), style: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' } },
       h('div', { onClick: e => e.stopPropagation(), style: { background: '#fff', padding: 24, borderRadius: 8, width: 600, maxHeight: '80vh', display: 'flex', flexDirection: 'column', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' } },

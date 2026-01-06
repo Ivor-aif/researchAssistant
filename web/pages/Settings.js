@@ -6,6 +6,13 @@ const h = React.createElement
 
 export default function Settings() {
   const [tz, setTz] = useState('Asia/Shanghai')
+  const [authorName, setAuthorName] = useState('')
+  const [affiliations, setAffiliations] = useState([])
+  const [email, setEmail] = useState('')
+  const [emailUrl, setEmailUrl] = useState('')
+  const [showUrlModal, setShowUrlModal] = useState(false)
+  const [tempUrl, setTempUrl] = useState('')
+  
   const [apis, setApis] = useState([])
   const [apiName, setApiName] = useState('')
   const [type, setType] = useState('cloud')
@@ -23,6 +30,10 @@ export default function Settings() {
     try {
       const s = await api('/config/settings')
       setTz(s.timezone || 'Asia/Shanghai')
+      setAuthorName(s.author_name || '')
+      setAffiliations(s.affiliations || [])
+      setEmail(s.email || '')
+      setEmailUrl(s.email_url || '')
       const list = await api('/config/ai')
       setApis(list)
       const ss = await api('/config/sites')
@@ -32,8 +43,45 @@ export default function Settings() {
   useEffect(() => { load() }, [])
 
   async function saveSettings() {
-    try { await api('/config/settings', { method: 'POST', body: { timezone: tz } }); setTimezone(tz); setMsg('设置已保存') } catch (e) { setMsg('保存失败') }
+    try { 
+      await api('/config/settings', { 
+        method: 'POST', 
+        body: { 
+          timezone: tz,
+          author_name: authorName,
+          affiliations,
+          email,
+          email_url: emailUrl
+        } 
+      })
+      setTimezone(tz)
+      setMsg('基础设置已保存') 
+    } catch (e) { setMsg('保存失败') }
   }
+  
+  function addAffiliation() {
+    setAffiliations([...affiliations, ''])
+  }
+  function updateAffiliation(i, val) {
+    const newAff = [...affiliations]
+    newAff[i] = val
+    setAffiliations(newAff)
+  }
+  function removeAffiliation(i) {
+    const newAff = [...affiliations]
+    newAff.splice(i, 1)
+    setAffiliations(newAff)
+  }
+
+  function openUrlModal() {
+    setTempUrl(emailUrl)
+    setShowUrlModal(true)
+  }
+  function saveUrlModal() {
+    setEmailUrl(tempUrl)
+    setShowUrlModal(false)
+  }
+
   async function saveApi() {
     try {
       const payload = { apiName: (apiName || '').trim(), type }
@@ -86,12 +134,49 @@ export default function Settings() {
 
   return h('div', null,
     h('div', { className: 'card' },
-      h('h3', null, '时区设置'),
-      h('div', { className: 'row' },
-        h('select', { value: tz, onChange: e => setTz(e.target.value) }, ...tzOptions.map(z => h('option', { key: z, value: z }, z))),
-        h('button', { onClick: saveSettings }, '保存时区')
+      h('h3', null, '基础设置'),
+      h('div', { style: { display: 'flex', flexDirection: 'column' } },
+        h('label', { className: 'muted', style: { marginBottom: 4 } }, '时区'),
+        h('select', { value: tz, onChange: e => setTz(e.target.value), style: { marginBottom: 16, padding: 4 } }, ...tzOptions.map(z => h('option', { key: z, value: z }, z))),
+
+        h('div', { style: { borderTop: '1px solid #eee', margin: '0 0 16px 0' } }),
+        h('h4', { style: { margin: '0 0 12px 0' } }, '署名信息'),
+
+        h('label', { className: 'muted', style: { marginBottom: 4 } }, '作者姓名 (英文/拼音)'),
+        h('input', { value: authorName, onChange: e => setAuthorName(e.target.value), placeholder: 'San Zhang', style: { marginBottom: 12, padding: 6 } }),
+
+        h('label', { className: 'muted', style: { marginBottom: 4 } }, '单位 (Affiliations)'),
+        ...affiliations.map((aff, i) => 
+          h('div', { key: i, style: { display: 'flex', width: '100%', marginBottom: 8 } },
+            h('input', { value: aff, onChange: e => updateAffiliation(i, e.target.value), placeholder: 'University of ...', style: { flex: 1, padding: 6 } }),
+            h('button', { onClick: () => removeAffiliation(i), style: { marginLeft: 8 } }, '删除')
+          )
+        ),
+        h('div', { style: { marginBottom: 12 } },
+          h('button', { onClick: addAffiliation, className: 'muted' }, '+ 添加单位')
+        ),
+
+        h('label', { className: 'muted', style: { marginBottom: 4 } }, '邮箱'),
+        h('div', { style: { display: 'flex', marginBottom: 16 } },
+          h('input', { value: email, onChange: e => setEmail(e.target.value), placeholder: 'name@example.com', style: { flex: 1, padding: 6, marginRight: 8 } }),
+          h('button', { onClick: openUrlModal, style: { marginRight: 8, padding: '0 12px', whiteSpace: 'nowrap' }, title: '设置邮箱访问地址' }, '设置地址'),
+          h('button', { onClick: () => window.open(emailUrl, '_blank'), disabled: !emailUrl, style: { padding: '0 12px', whiteSpace: 'nowrap' }, title: '打开邮箱' }, '访问邮箱')
+        ),
+
+        h('button', { onClick: saveSettings }, '保存基础设置')
       )
     ),
+    showUrlModal ? h('div', { style: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 } },
+      h('div', { className: 'card', style: { width: '400px', maxWidth: '90%', background: 'white', padding: 20, boxShadow: '0 4px 12px rgba(0,0,0,0.15)' } },
+        h('h3', { style: { marginTop: 0 } }, '设置邮箱访问地址'),
+        h('p', { className: 'muted' }, '请输入点击“访问邮箱”按钮时跳转的网址：'),
+        h('input', { value: tempUrl, onChange: e => setTempUrl(e.target.value), placeholder: 'https://mail.google.com...', style: { width: '100%', padding: 8, marginBottom: 16, boxSizing: 'border-box' } }, ),
+        h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8 } },
+          h('button', { onClick: () => setShowUrlModal(false), style: { background: '#eee', color: '#333' } }, '取消'),
+          h('button', { onClick: saveUrlModal }, '确定')
+        )
+      )
+    ) : null,
     h('div', { className: 'card' },
       h('h3', null, 'API 配置'),
       h('div', { className: 'row' },
