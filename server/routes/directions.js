@@ -41,19 +41,21 @@ router.get('/', query('projectId').optional().isString(), async (req, res) => {
       deep_files: row.deep_files || [],
       conclusion_files: row.conclusion_files || [],
       paper_md: row.paper_md || '',
-      supplementary_md: row.supplementary_md || ''
+      supplementary_md: row.supplementary_md || '',
+      paper_extra_req: row.paper_extra_req || ''
     })))
   } else {
     const projs = await db.projects.find({ user_id: req.user.id })
     const projIds = projs.map(p => p._id)
     const rows = await db.directions.find({ project_id: { $in: projIds } }).sort({ _id: -1 })
-    return res.json(rows.map(({ _id, project_id, name, description, status, created_at, updated_at, deep_tendency, deep_files, conclusion_files, paper_md, supplementary_md, ...row }) => ({ 
+    return res.json(rows.map(({ _id, project_id, name, description, status, created_at, updated_at, deep_tendency, deep_files, conclusion_files, paper_md, supplementary_md, paper_extra_req, ...row }) => ({ 
       id: _id, project_id, name, description, status: status || '未生成综述', created_at, updated_at,
       deep_tendency: deep_tendency || '',
       deep_files: deep_files || [],
       conclusion_files: conclusion_files || [],
       paper_md: paper_md || '',
-      supplementary_md: supplementary_md || ''
+      supplementary_md: supplementary_md || '',
+      paper_extra_req: paper_extra_req || ''
     })))
   }
 })
@@ -83,6 +85,9 @@ router.put(
   body('status').optional().isString(),
   body('review_md').optional().isString().isLength({ max: 500000 }),
   body('deep_tendency').optional().isString().isLength({ max: 50000 }),
+  body('paper_md').optional().isString().isLength({ max: 500000 }),
+  body('supplementary_md').optional().isString().isLength({ max: 500000 }),
+  body('paper_extra_req').optional().isString().isLength({ max: 10000 }),
   body('citation_stats').optional().isObject(),
   async (req, res) => {
     const errors = validationResult(req)
@@ -92,7 +97,7 @@ router.put(
     if (!dir) return res.status(404).json({ error: 'Direction not found' })
     const proj = await db.projects.findOne({ _id: dir.project_id })
     if (!proj || proj.user_id !== req.user.id) return res.status(404).json({ error: 'Direction not found' })
-    const { name, description, status, review_md, citation_stats, deep_tendency } = req.body
+    const { name, description, status, review_md, citation_stats, deep_tendency, paper_md, supplementary_md, paper_extra_req } = req.body
     const now = new Date().toISOString()
     const nextSet = { 
       name: name ?? dir.name, 
@@ -103,6 +108,9 @@ router.put(
     if (typeof review_md === 'string') nextSet.review_md = review_md
     if (citation_stats && typeof citation_stats === 'object') nextSet.citation_stats = citation_stats
     if (typeof deep_tendency === 'string') nextSet.deep_tendency = deep_tendency
+    if (typeof paper_md === 'string') nextSet.paper_md = paper_md
+    if (typeof supplementary_md === 'string') nextSet.supplementary_md = supplementary_md
+    if (typeof paper_extra_req === 'string') nextSet.paper_extra_req = paper_extra_req
     
     await db.directions.update({ _id: id }, { $set: nextSet })
     const row = await db.directions.findOne({ _id: id })
@@ -117,6 +125,9 @@ router.put(
       deep_tendency: row.deep_tendency || '',
       deep_files: row.deep_files || [],
       conclusion_files: row.conclusion_files || [],
+      paper_md: row.paper_md || '',
+      supplementary_md: row.supplementary_md || '',
+      paper_extra_req: row.paper_extra_req || '',
       created_at: row.created_at, 
       updated_at: row.updated_at 
     })

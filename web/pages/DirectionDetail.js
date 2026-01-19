@@ -247,22 +247,40 @@ function DirectionDetailContent({ project, onExit }) {
                 if (fresh.deep_files && fresh.deep_files.length > 0) setDeepFiles(fresh.deep_files)
                 if (fresh.conclusion_files && fresh.conclusion_files.length > 0) setConclusionFiles(fresh.conclusion_files)
                 if (fresh.paper_md) setPaperResult(fresh.paper_md)
-                if (fresh.supplementary_md) setSupplementaryResult(fresh.supplementary_md)
-                if (fresh.status) setStatus(fresh.status)
-            }
-        } catch {}
-    })()
-  }, [d.id])
+        if (fresh.supplementary_md) setSupplementaryResult(fresh.supplementary_md)
+        if (fresh.paper_extra_req) setPaperExtraReq(fresh.paper_extra_req)
+        if (fresh.status) setStatus(fresh.status)
+      }
+    } catch {}
+  })()
+}, [d.id])
 
-  // Auto-save deepTendency
-  useEffect(() => {
-    const t = setTimeout(() => {
-        if (deepTendency) {
-            api(`/directions/${d.id}`, { method: 'PUT', body: { deep_tendency: deepTendency } }).catch(() => {})
-        }
-    }, 1000)
-    return () => clearTimeout(t)
-  }, [deepTendency])
+// Auto-save deepTendency
+useEffect(() => {
+  const t = setTimeout(() => {
+    if (deepTendency) {
+      api(`/directions/${d.id}`, { method: 'PUT', body: { deep_tendency: deepTendency } }).catch(() => {})
+    }
+  }, 1000)
+  return () => clearTimeout(t)
+}, [deepTendency])
+
+// Auto-save Paper Data (Paper, Supplementary, ExtraReq)
+useEffect(() => {
+  const t = setTimeout(() => {
+    if (paperResult || supplementaryResult || paperExtraReq) {
+      api(`/directions/${d.id}`, { 
+        method: 'PUT', 
+        body: { 
+          paper_md: paperResult, 
+          supplementary_md: supplementaryResult,
+          paper_extra_req: paperExtraReq
+        } 
+      }).catch(() => {})
+    }
+  }, 2000) // 2s debounce
+  return () => clearTimeout(t)
+}, [paperResult, supplementaryResult, paperExtraReq])
 
   const pageSize = 20
   const name = d.name || '(未命名)'
@@ -340,6 +358,13 @@ function DirectionDetailContent({ project, onExit }) {
         else setReviewPromptTpl(DEFAULT_REVIEW_PROMPT)
         
         if (saved.reviewMd) setReviewMd(saved.reviewMd)
+
+        if (saved.paperApiName) setPaperApiName(saved.paperApiName)
+        if (saved.paperPromptTpl) setPaperPromptTpl(saved.paperPromptTpl)
+        if (saved.paperResult) setPaperResult(saved.paperResult)
+        if (saved.supplementaryResult) setSupplementaryResult(saved.supplementaryResult)
+        if (saved.paperExtraReq) setPaperExtraReq(saved.paperExtraReq)
+        if (saved.acknowledgements) setAcknowledgements(saved.acknowledgements)
       }
     } catch {}
   }, [])
@@ -374,10 +399,11 @@ function DirectionDetailContent({ project, onExit }) {
       paperPromptTpl,
       paperResult,
       supplementaryResult,
+      paperExtraReq,
       acknowledgements
     }
     try { localStorage.setItem('dir_' + d.id, JSON.stringify(data)) } catch {}
-  }, [searchApiName, reviewApiName, keywords, uploaded, results, siteSelected, manualSiteSelected, page, searchPromptTpl, reviewPromptTpl, reviewMd, deepTendency, deepApiName, deepPromptTpl, deepResult, deepFiles, dataApiName, dataPromptTpl, dataResult, dataFiles, conclusionApiName, conclusionPromptTpl, conclusionResult, conclusionFiles, paperApiName, paperPromptTpl, paperResult, supplementaryResult, acknowledgements])
+  }, [searchApiName, reviewApiName, keywords, uploaded, results, siteSelected, manualSiteSelected, page, searchPromptTpl, reviewPromptTpl, reviewMd, deepTendency, deepApiName, deepPromptTpl, deepResult, deepFiles, dataApiName, dataPromptTpl, dataResult, dataFiles, conclusionApiName, conclusionPromptTpl, conclusionResult, conclusionFiles, paperApiName, paperPromptTpl, paperResult, supplementaryResult, paperExtraReq, acknowledgements])
 
   useEffect(() => {
     if (!uploadModalOpen) return
@@ -1443,18 +1469,57 @@ function DirectionDetailContent({ project, onExit }) {
 
         appendLog({ id: reqId, step: 'paper_writing_start', apiName: paperApiName })
         
-        const r = await api('/config/ai/prompt', { 
-            method: 'POST', 
-            body: { apiName: paperApiName, prompt, debug: true, requestId: reqId }, 
-            timeoutMs: 1800000 // 30 mins
-        })
+        let fullAnswer = ''
+        let loopCount = 0
+        const MAX_LOOPS = 5
+        let currentPrompt = prompt
         
-        const answer = r && r.answer ? String(r.answer) : ''
+        while (loopCount < MAX_LOOPS) {
+            if (loopCount > 0) {
+                setMsg(`正在撰写论文 (Part ${loopCount + 1})...`)
+            }
+
+            const r = await api('/config/ai/prompt', { 
+                method: 'POST', 
+                body: { apiName: paperApiName, prompt: currentPrompt, debug: true, requestId: reqId + '_' + loopCount }, 
+                timeoutMs: 1800000 // 30 mins
+            })
+            
+            const partAnswer = r && r.answer ? String(r.answer) : ''
+            fullAnswer += partAnswer
+            
+            // Check if finished
+            // The prompt asks for [SUPPLEMENTARY_END] as the final marker.
+            // If we find it, we are done.
+            if (fullAnswer.includes('[SUPPLEMENTARY_END]')) {
+                break
+            }
+            
+            // If not finished, prepare next prompt
+            loopCount++
+            if (loopCount < MAX_LOOPS) {
+                // Take the last 2000 chars as context to avoid huge prompt, but ensure continuity
+                const context = fullAnswer.slice(-2000)
+                currentPrompt = `You are a continuous writer. You were writing a paper but the output was cut off due to length limits.
+The last part of your output was:
+"""
+...${context}
+"""
+
+Please continue writing exactly from where you stopped. 
+Do NOT repeat the last sentence. 
+Do NOT output [PAPER_BODY_START] again if you are already inside the body.
+Just output the remaining content until the paper and supplementary materials are finished with [SUPPLEMENTARY_END].`
+            }
+        }
+        
+        const answer = fullAnswer
         
         let body = ''
         let supp = ''
         
         // Strategy 1: Delimiter Parsing (New Format)
+        // Since we might have multiple parts, we just look for the delimiters in the full string.
         const bodyMatch = answer.match(/\[PAPER_BODY_START\]([\s\S]*?)\[PAPER_BODY_END\]/)
         if (bodyMatch) {
             body = bodyMatch[1].trim()

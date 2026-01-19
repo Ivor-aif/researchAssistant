@@ -61,6 +61,27 @@ async function run() {
     assert(Array.isArray(dlist) && dlist.find(x => x.id === d.id && x.status === '未生成综述'))
     const dupd = await api(`/directions/${d.id}`, { method: 'PUT', body: { status: '已生成综述' }, token })
     assert(dupd.status === '已生成综述')
+
+    // Test saving paper_md and supplementary_md and paper_extra_req
+    const dPaper = await api(`/directions/${d.id}`, { 
+      method: 'PUT', 
+      body: { 
+        paper_md: '# P1', 
+        supplementary_md: '# S1',
+        paper_extra_req: 'Req1'
+      }, 
+      token 
+    })
+    assert(dPaper.paper_md === '# P1')
+    assert(dPaper.supplementary_md === '# S1')
+    assert(dPaper.paper_extra_req === 'Req1')
+    
+    const dCheck = await api(`/directions?projectId=${p.id}`, { token })
+    const dFound = dCheck.find(x => x.id === d.id)
+    assert(dFound.paper_md === '# P1')
+    assert(dFound.supplementary_md === '# S1')
+    assert(dFound.paper_extra_req === 'Req1')
+
     log('研究方向状态流转', true)
 
     // settings
