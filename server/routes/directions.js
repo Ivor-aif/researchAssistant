@@ -42,20 +42,32 @@ router.get('/', query('projectId').optional().isString(), async (req, res) => {
       conclusion_files: row.conclusion_files || [],
       paper_md: row.paper_md || '',
       supplementary_md: row.supplementary_md || '',
-      paper_extra_req: row.paper_extra_req || ''
+      paper_extra_req: row.paper_extra_req || '',
+      cover_letter: row.cover_letter || '',
+      submission_status: row.submission_status || '',
+      reviews: row.reviews || [],
+      response_content: row.response_content || '',
+      final_paper_md: row.final_paper_md || '',
+      final_supplementary_md: row.final_supplementary_md || ''
     })))
   } else {
     const projs = await db.projects.find({ user_id: req.user.id })
     const projIds = projs.map(p => p._id)
     const rows = await db.directions.find({ project_id: { $in: projIds } }).sort({ _id: -1 })
-    return res.json(rows.map(({ _id, project_id, name, description, status, created_at, updated_at, deep_tendency, deep_files, conclusion_files, paper_md, supplementary_md, paper_extra_req, ...row }) => ({ 
+    return res.json(rows.map(({ _id, project_id, name, description, status, created_at, updated_at, deep_tendency, deep_files, conclusion_files, paper_md, supplementary_md, paper_extra_req, cover_letter, submission_status, reviews, response_content, final_paper_md, final_supplementary_md, ...row }) => ({ 
       id: _id, project_id, name, description, status: status || '未生成综述', created_at, updated_at,
       deep_tendency: deep_tendency || '',
       deep_files: deep_files || [],
       conclusion_files: conclusion_files || [],
       paper_md: paper_md || '',
       supplementary_md: supplementary_md || '',
-      paper_extra_req: paper_extra_req || ''
+      paper_extra_req: paper_extra_req || '',
+      cover_letter: cover_letter || '',
+      submission_status: submission_status || '',
+      reviews: reviews || [],
+      response_content: response_content || '',
+      final_paper_md: final_paper_md || '',
+      final_supplementary_md: final_supplementary_md || ''
     })))
   }
 })
@@ -111,6 +123,15 @@ router.put(
     if (typeof paper_md === 'string') nextSet.paper_md = paper_md
     if (typeof supplementary_md === 'string') nextSet.supplementary_md = supplementary_md
     if (typeof paper_extra_req === 'string') nextSet.paper_extra_req = paper_extra_req
+
+    // Submission Simulation Fields
+    const { cover_letter, submission_status, reviews, response_content, final_paper_md, final_supplementary_md } = req.body
+    if (typeof cover_letter === 'string') nextSet.cover_letter = cover_letter
+    if (typeof submission_status === 'string') nextSet.submission_status = submission_status
+    if (Array.isArray(reviews)) nextSet.reviews = reviews
+    if (typeof response_content === 'string') nextSet.response_content = response_content
+    if (typeof final_paper_md === 'string') nextSet.final_paper_md = final_paper_md
+    if (typeof final_supplementary_md === 'string') nextSet.final_supplementary_md = final_supplementary_md
     
     await db.directions.update({ _id: id }, { $set: nextSet })
     const row = await db.directions.findOne({ _id: id })
@@ -128,6 +149,13 @@ router.put(
       paper_md: row.paper_md || '',
       supplementary_md: row.supplementary_md || '',
       paper_extra_req: row.paper_extra_req || '',
+      // Return new fields
+      cover_letter: row.cover_letter || '',
+      submission_status: row.submission_status || '',
+      reviews: row.reviews || [],
+      response_content: row.response_content || '',
+      final_paper_md: row.final_paper_md || '',
+      final_supplementary_md: row.final_supplementary_md || '',
       created_at: row.created_at, 
       updated_at: row.updated_at 
     })

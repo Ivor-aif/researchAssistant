@@ -79,7 +79,7 @@ const DEFAULT_PAPER_PROMPT = `你是资深学术论文写作者。请基于前�
 1. **作者信息**：
   - 第一作者/通讯作者：{{userAuthorName}} (Email: {{userAuthorEmail}})
   - 第二作者：{{aiAuthorName}} (AI)
-2. **致谢 (Acknowledgements)**：
+2. **致谢**：
   - {{acknowledgements}}
   - (请务必将 AI 作者 {{aiAuthorName}} 也加入致谢中)
 3. **研究内容**：
@@ -106,6 +106,47 @@ const DEFAULT_PAPER_PROMPT = `你是资深学术论文写作者。请基于前�
 [SUPPLEMENTARY_END]
 
   - 即使没有补充材料，也必须保留 [SUPPLEMENTARY_START] 和 [SUPPLEMENTARY_END] 标记。`
+
+
+const DEFAULT_COVER_LETTER_PROMPT = `你是资深学术论文作者。请根据提供的论文标题、摘要和投稿期刊（假设为顶刊），撰写一封专业的 附涵（Cover Letter）。
+内容应包括：
+1. 介绍论文的核心贡献。
+2. 说明为什么适合该期刊。
+3. 声明无利益冲突且未一稿多投。
+4. 语气自信、礼貌、专业。`
+
+const DEFAULT_PEER_REVIEW_PROMPT = `你是该领域的顶级专家，担任某顶级期刊的审稿人。你需要对这篇论文进行极其严苛的评审。
+请指出论文在以下方面的不足（越尖锐越好，但要言之有物）：
+1. 创新性（Novelty）
+2. 方法论（Methodology）的严谨性
+3. 实验设计的缺陷
+4. 数据分析的漏洞
+5. 写作逻辑与清晰度
+
+最后请给出拒稿（Reject）或大修（Major Revision）的建议。
+输出格式为 Markdown，包含清晰的编号列表。`
+
+const DEFAULT_RESPONSE_PROMPT = `你是论文的第一作者。你收到了一份非常严厉的审稿意见。
+请根据审稿意见，撰写一份 Point-by-Point 的回复信（Response Letter），并对论文正文进行相应的修改（模拟修改过程）。
+
+你需要：
+1. **回复信**：语气极其谦逊、礼貌（"We thank the reviewer for the insightful comments..."）。对每一条意见进行详细回应，解释修改了什么，或者委婉地反驳。
+2. **论文修订**：根据审稿意见，生成修改后的论文正文。
+
+**输出格式**：
+请务必严格遵守以下自定义分隔符格式返回内容：
+
+[RESPONSE_LETTER_START]
+(回复信内容)
+[RESPONSE_LETTER_END]
+
+[REVISED_PAPER_START]
+(修改后的完整论文正文 Markdown)
+[REVISED_PAPER_END]
+
+[REVISED_SUPPLEMENTARY_START]
+(修改后的补充材料 Markdown，如无修改则保持原样)
+[REVISED_SUPPLEMENTARY_END]`
 
 
 class ErrorBoundary extends React.Component {
@@ -214,6 +255,32 @@ function DirectionDetailContent({ project, onExit }) {
   const [ackType, setAckType] = useState('person')
   const [ackForm, setAckForm] = useState({ name: '', help: '', fundNo: '', fundInfo: '' })
 
+  // Simulated Submission State
+  const [coverLetterApi, setCoverLetterApi] = useState('')
+  const [coverLetterPrompt, setCoverLetterPrompt] = useState(DEFAULT_COVER_LETTER_PROMPT)
+  const [coverLetter, setCoverLetter] = useState('')
+  const [coverLetterRunning, setCoverLetterRunning] = useState(false)
+  const [coverLetterExpanded, setCoverLetterExpanded] = useState(true)
+  
+  const [reviewerApis, setReviewerApis] = useState(['', '', ''])
+  const [reviewPrompt, setReviewPrompt] = useState(DEFAULT_PEER_REVIEW_PROMPT)
+  const [reviews, setReviews] = useState([]) // Array of { reviewerId, content }
+  const [reviewsRunning, setReviewsRunning] = useState(false)
+  const [reviewsExpanded, setReviewsExpanded] = useState(true)
+
+  const [responseApi, setResponseApi] = useState('')
+  const [responsePrompt, setResponsePrompt] = useState(DEFAULT_RESPONSE_PROMPT)
+  const [responseContent, setResponseContent] = useState('')
+  const [responseRaw, setResponseRaw] = useState('')
+  const [finalPaper, setFinalPaper] = useState('')
+  const [finalSupplementary, setFinalSupplementary] = useState('')
+  const [responseRunning, setResponseRunning] = useState(false)
+  const [responseExpanded, setResponseExpanded] = useState(true)
+  const [finalPaperExpanded, setFinalPaperExpanded] = useState(true)
+  
+  const [submissionExpanded, setSubmissionExpanded] = useState(true)
+  const [submissionStatus, setSubmissionStatus] = useState('') // 'submitting', 'reviewing', 'revising', 'completed'
+
   // Inject KaTeX CSS
   useEffect(() => {
     if (!document.getElementById('katex-css')) {
@@ -250,10 +317,39 @@ function DirectionDetailContent({ project, onExit }) {
         if (fresh.supplementary_md) setSupplementaryResult(fresh.supplementary_md)
         if (fresh.paper_extra_req) setPaperExtraReq(fresh.paper_extra_req)
         if (fresh.status) setStatus(fresh.status)
+
+        if (fresh.cover_letter) setCoverLetter(fresh.cover_letter)
+        if (fresh.submission_status) setSubmissionStatus(fresh.submission_status)
+        if (fresh.reviews && Array.isArray(fresh.reviews)) setReviews(fresh.reviews)
+        if (fresh.response_content) setResponseContent(fresh.response_content)
+        if (fresh.response_raw) setResponseRaw(fresh.response_raw)
+        if (fresh.final_paper_md) setFinalPaper(fresh.final_paper_md)
+        if (fresh.final_supplementary_md) setFinalSupplementary(fresh.final_supplementary_md)
       }
     } catch {}
   })()
 }, [d.id])
+
+// Auto-save Submission Data
+useEffect(() => {
+  const t = setTimeout(() => {
+    if (coverLetter || submissionStatus || reviews.length > 0 || responseContent || finalPaper) {
+        api(`/directions/${d.id}`, { 
+            method: 'PUT', 
+            body: { 
+                cover_letter: coverLetter,
+                submission_status: submissionStatus,
+                reviews: reviews,
+                response_content: responseContent,
+                response_raw: responseRaw,
+                final_paper_md: finalPaper,
+                final_supplementary_md: finalSupplementary
+            } 
+        }).catch(() => {})
+    }
+  }, 2000)
+  return () => clearTimeout(t)
+}, [coverLetter, submissionStatus, reviews, responseContent, responseRaw, finalPaper, finalSupplementary])
 
 // Auto-save deepTendency
 useEffect(() => {
@@ -307,6 +403,9 @@ useEffect(() => {
           setDataApiName(prev => prev || a[0].api_name)
           setConclusionApiName(prev => prev || a[0].api_name)
           setPaperApiName(prev => prev || a[0].api_name)
+          setCoverLetterApi(prev => prev || a[0].api_name)
+          setReviewerApis(prev => prev.map(x => x || a[0].api_name))
+          setResponseApi(prev => prev || a[0].api_name)
         }
         const s = await api('/config/sites'); setSites(s); 
         const sel = {}; s.forEach(it => sel[it.id] = true); 
@@ -1579,6 +1678,273 @@ Just output the remaining content until the paper and supplementary materials ar
     }
   }
 
+  async function startCoverLetter() {
+    if (!paperResult) { setMsg('请先完成论文撰写（步骤4）'); return }
+    if (!coverLetterApi) { setMsg('请选择 附涵 API'); return }
+    
+    setCoverLetterRunning(true)
+    setSubmissionStatus('submitting')
+    setStatus('正在生成 附涵')
+    api('/directions/' + d.id, { method: 'PUT', body: { status: '正在生成 附涵' } }).catch(() => {})
+    const reqId = genReqId()
+    
+    try {
+        const prompt = `${coverLetterPrompt}\n\nTitle: ${name}\n\nAbstract:\n${paperResult.slice(0, 3000)}...` // Use first 3000 chars of paper as context (usually contains abstract)
+        
+        appendLog({ id: reqId, step: 'cover_letter_start', apiName: coverLetterApi })
+        
+        const r = await api('/config/ai/prompt', { 
+            method: 'POST', 
+            body: { apiName: coverLetterApi, prompt: prompt, debug: true, requestId: reqId }, 
+            timeoutMs: 300000 
+        })
+        
+        let answer = r && r.answer ? String(r.answer) : ''
+        
+        // Clean markdown
+        const match = answer.match(/^```markdown\s*([\s\S]*?)\s*```$/) || answer.match(/^```\s*([\s\S]*?)\s*```$/)
+        if (match) answer = match[1]
+        
+        setCoverLetter(answer)
+        setMsg('附涵 生成完毕')
+    } catch (e) {
+        setMsg('附涵 生成失败: ' + e.message)
+    } finally {
+        setCoverLetterRunning(false)
+    }
+  }
+
+  async function continueCoverLetter() {
+    if (!coverLetter) return
+    if (!coverLetterApi) { setMsg('请选择 附涵 API'); return }
+    
+    setCoverLetterRunning(true)
+    setStatus('正在继续生成 附涵')
+    const reqId = genReqId()
+    
+    try {
+        const context = coverLetter.slice(-2000)
+        const prompt = `You are a continuous writer. The Cover Letter was cut off.
+The last part was:
+"""
+...${context}
+"""
+Please continue exactly from where you stopped.
+Do NOT repeat the last sentence.
+Just output the remaining content.`
+        
+        appendLog({ id: reqId, step: 'cover_letter_continue', apiName: coverLetterApi })
+        
+        const r = await api('/config/ai/prompt', { 
+            method: 'POST', 
+            body: { apiName: coverLetterApi, prompt: prompt, debug: true, requestId: reqId }, 
+            timeoutMs: 300000 
+        })
+        
+        let answer = r && r.answer ? String(r.answer) : ''
+        const match = answer.match(/^```markdown\s*([\s\S]*?)\s*```$/) || answer.match(/^```\s*([\s\S]*?)\s*```$/)
+        if (match) answer = match[1]
+        
+        setCoverLetter(prev => prev + answer)
+        setMsg('附涵 继续生成完毕')
+    } catch (e) {
+        setMsg('附涵 继续生成失败: ' + e.message)
+    } finally {
+        setCoverLetterRunning(false)
+    }
+  }
+
+  async function startPeerReview() {
+    if (!coverLetter) { setMsg('请先生成 附涵'); return }
+    if (reviewerApis.some(x => !x)) { setMsg('请选择所有审稿人 API'); return }
+    
+    setReviewsRunning(true)
+    setSubmissionStatus('reviewing')
+    setStatus('正在同行评审')
+    api('/directions/' + d.id, { method: 'PUT', body: { status: '正在同行评审' } }).catch(() => {})
+    setReviews([]) // Clear previous
+    
+    try {
+        const prompt = `${reviewPrompt}\n\nPaper Content:\n${paperResult}\n\nSupplementary Materials:\n${supplementaryResult}`
+        
+        // Parallel requests
+        const promises = reviewerApis.map(async (apiName, index) => {
+            const reqId = genReqId() + '_rev_' + index
+            appendLog({ id: reqId, step: `review_${index}_start`, apiName })
+            
+            try {
+                const r = await api('/config/ai/prompt', { 
+                    method: 'POST', 
+                    body: { apiName: apiName, prompt: prompt, debug: true, requestId: reqId }, 
+                    timeoutMs: 600000 
+                })
+                
+                let answer = r && r.answer ? String(r.answer) : ''
+                const match = answer.match(/^```markdown\s*([\s\S]*?)\s*```$/) || answer.match(/^```\s*([\s\S]*?)\s*```$/)
+                if (match) answer = match[1]
+                
+                return { reviewerId: index + 1, content: answer, apiName }
+            } catch (e) {
+                return { reviewerId: index + 1, content: `Review failed: ${e.message}`, apiName }
+            }
+        })
+        
+        const results = await Promise.all(promises)
+        setReviews(results)
+        setMsg('同行评审完成')
+    } catch (e) {
+        setMsg('同行评审流程失败: ' + e.message)
+    } finally {
+        setReviewsRunning(false)
+    }
+  }
+
+  function parseResponseAndSetState(text) {
+    let resp = ''
+    let revPaper = ''
+    let revSupp = ''
+    
+    // Helper to find content between tags or until next tag/end
+    const extract = (str, startTag, endTag, nextTags = []) => {
+        const s = str.indexOf(startTag)
+        if (s === -1) return ''
+        let e = str.indexOf(endTag, s)
+        if (e === -1) {
+            // Try next tags
+            for (const nt of nextTags) {
+                const nti = str.indexOf(nt, s)
+                if (nti !== -1) {
+                    e = nti
+                    break
+                }
+            }
+        }
+        if (e === -1) e = str.length
+        return str.substring(s + startTag.length, e).trim()
+    }
+
+    resp = extract(text, '[RESPONSE_LETTER_START]', '[RESPONSE_LETTER_END]', ['[REVISED_PAPER_START]'])
+    revPaper = extract(text, '[REVISED_PAPER_START]', '[REVISED_PAPER_END]', ['[REVISED_SUPPLEMENTARY_START]'])
+    revSupp = extract(text, '[REVISED_SUPPLEMENTARY_START]', '[REVISED_SUPPLEMENTARY_END]')
+    
+    setResponseContent(normalizeMarkdown(resp))
+    setFinalPaper(normalizeMarkdown(revPaper))
+    setFinalSupplementary(normalizeMarkdown(revSupp))
+  }
+
+  async function startResponse() {
+    if (reviews.length === 0) { setMsg('请先完成同行评审'); return }
+    if (!responseApi) { setMsg('请选择回复 API'); return }
+    
+    setResponseRunning(true)
+    setSubmissionStatus('revising')
+    setStatus('正在生成回复与修订')
+    api('/directions/' + d.id, { method: 'PUT', body: { status: '正在生成回复与修订' } }).catch(() => {})
+    const reqId = genReqId()
+    
+    try {
+        let prompt = responsePrompt
+        prompt += `\n\nOriginal Paper:\n${paperResult}\n\nOriginal Supplementary:\n${supplementaryResult}\n\n`
+        
+        reviews.forEach((r, i) => {
+            prompt += `## Reviewer ${r.reviewerId}\n${r.content}\n\n`
+        })
+        
+        appendLog({ id: reqId, step: 'response_start', apiName: responseApi })
+        
+        let fullAnswer = ''
+        let loopCount = 0
+        const MAX_LOOPS = 6
+        let currentPrompt = prompt
+        
+        while (loopCount < MAX_LOOPS) {
+            if (loopCount > 0) setMsg(`正在生成回复与修订 (Part ${loopCount + 1})...`)
+            
+            const r = await api('/config/ai/prompt', { 
+                method: 'POST', 
+                body: { apiName: responseApi, prompt: currentPrompt, debug: true, requestId: reqId + '_' + loopCount }, 
+                timeoutMs: 1800000 
+            })
+            
+            const partAnswer = r && r.answer ? String(r.answer) : ''
+            fullAnswer += partAnswer
+            
+            // Update state incrementally so user sees progress
+            setResponseRaw(fullAnswer)
+            parseResponseAndSetState(fullAnswer)
+            
+            if (fullAnswer.includes('[REVISED_SUPPLEMENTARY_END]')) break
+            
+            loopCount++
+            if (loopCount < MAX_LOOPS) {
+                const context = fullAnswer.slice(-2000)
+                currentPrompt = `You are a continuous writer. The output was cut off.
+The last part was:
+"""
+...${context}
+"""
+Please continue exactly from where you stopped.
+Do NOT repeat the last sentence.
+Do NOT output [RESPONSE_LETTER_START] or [REVISED_PAPER_START] again if already inside.
+Just output the remaining content until [REVISED_SUPPLEMENTARY_END].`
+            }
+        }
+        
+        setResponseRaw(fullAnswer)
+        parseResponseAndSetState(fullAnswer)
+        
+        setSubmissionStatus('completed')
+        setStatus('模拟投稿完成')
+        api('/directions/' + d.id, { method: 'PUT', body: { status: '模拟投稿完成' } }).catch(() => {})
+        setMsg('模拟投稿流程结束，定稿已生成')
+        
+    } catch (e) {
+        setMsg('回复生成失败: ' + e.message)
+    } finally {
+        setResponseRunning(false)
+    }
+  }
+
+  async function continueResponse() {
+    if (!responseRaw) return
+    if (!responseApi) { setMsg('请选择回复 API'); return }
+    
+    setResponseRunning(true)
+    setStatus('正在继续生成回复与修订')
+    const reqId = genReqId()
+    
+    try {
+        const context = responseRaw.slice(-2000)
+        const prompt = `You are a continuous writer. The output was cut off.
+The last part was:
+"""
+...${context}
+"""
+Please continue exactly from where you stopped.
+Do NOT repeat the last sentence.
+Just output the remaining content until [REVISED_SUPPLEMENTARY_END].`
+        
+        appendLog({ id: reqId, step: 'response_continue', apiName: responseApi })
+        
+        const r = await api('/config/ai/prompt', { 
+            method: 'POST', 
+            body: { apiName: responseApi, prompt: prompt, debug: true, requestId: reqId }, 
+            timeoutMs: 1800000 
+        })
+        
+        const answer = r && r.answer ? String(r.answer) : ''
+        const newRaw = responseRaw + answer
+        setResponseRaw(newRaw)
+        parseResponseAndSetState(newRaw)
+        
+        setMsg('继续生成完毕')
+    } catch (e) {
+        setMsg('继续生成失败: ' + e.message)
+    } finally {
+        setResponseRunning(false)
+    }
+  }
+
   const totalPages = Math.max(1, Math.ceil(combinedList().length / pageSize))
   return h('div', { style: { maxWidth: 1200, margin: '0 auto', padding: '0 20px', width: '100%' } },
     h('div', { className: 'card' },
@@ -2093,7 +2459,7 @@ Just output the remaining content until the paper and supplementary materials ar
 
         // 2. Acknowledgements
         h('div', { style: { border: '1px solid #eee', padding: 12, borderRadius: 8, background: '#fafafa' } },
-            h('div', { style: { fontWeight: 'bold', marginBottom: 8 } }, '致谢 (Acknowledgements)'),
+            h('div', { style: { fontWeight: 'bold', marginBottom: 8 } }, '致谢'),
             h('div', { className: 'muted', style: { fontSize: '0.85em', marginBottom: 8 } }, '请添加基金号、帮助过的人等信息 (AI作者将自动添加)'),
             ...acknowledgements.map((ack, i) => 
                 h('div', { key: i, style: { display: 'flex', width: '100%', marginBottom: 8 } },
@@ -2133,7 +2499,7 @@ Just output the remaining content until the paper and supplementary materials ar
 
         // 3.5 Extra Requirements
         h('div', { style: { marginBottom: 12 } },
-            h('div', { style: { fontWeight: 'bold', marginBottom: 4 } }, '额外需求 (Extra Requirements)'),
+            h('div', { style: { fontWeight: 'bold', marginBottom: 4 } }, '额外需求'),
             h('textarea', {
                 placeholder: '例如：请重点讨论... / 请生成 Letter 格式 / 请增加关于...的对比',
                 value: paperExtraReq,
@@ -2178,6 +2544,183 @@ Just output the remaining content until the paper and supplementary materials ar
         supplementaryExpanded ? h('div', { className: 'markdown-body', style: { maxHeight: 'none', overflow: 'visible', border: '1px solid #eee', padding: 40, borderRadius: 8, background: '#fff', fontSize: '13px', lineHeight: '1.6' } },
             h(ReactMarkdown, { remarkPlugins: [remarkGfm, remarkMath], rehypePlugins: [rehypeKatex] }, supplementaryResult)
         ) : null
+      ) : null
+    ),
+
+    // Step 5: Simulated Submission
+    h('div', { className: 'card', style: { marginTop: 12 } },
+      h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+          h('h3', null, '第五步：模拟投稿'),
+          h('button', { className: 'secondary btn-small', onClick: () => setSubmissionExpanded(!submissionExpanded) }, submissionExpanded ? '折叠' : '展开')
+      ),
+      submissionExpanded ? h('div', null,
+        h('div', { className: 'muted', style: { marginBottom: 20 } }, '模拟 附涵 (Cover Letter) 撰写、同行评审 (Peer Review) 及回复信 (Response) 生成流程。'),
+
+        h('div', { style: { display: 'flex', flexDirection: 'column', gap: 24 } },
+            
+            // Phase 1: Cover Letter
+            h('div', null,
+                h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, borderBottom: '1px solid #eee', paddingBottom: 8 } },
+                    h('h4', { style: { margin: 0 } }, '1. 附涵'),
+                    h('div', { style: { display: 'flex', gap: 8 } },
+                        coverLetter ? h('button', { className: 'secondary btn-small', onClick: () => downloadPdfContent(coverLetter, 'Cover_Letter.pdf') }, '下载 PDF') : null,
+                        h('button', { className: 'secondary btn-small', onClick: () => setCoverLetterExpanded(!coverLetterExpanded) }, coverLetterExpanded ? '折叠' : '展开')
+                    )
+                ),
+                coverLetterExpanded ? h('div', null,
+                    h('div', { style: { display: 'flex', gap: 12, marginBottom: 12 } },
+                        h('div', { style: { flex: 1 } },
+                            h('div', { style: { fontSize: '0.9em', marginBottom: 4 } }, '选择 API'),
+                            h('select', { value: coverLetterApi, onChange: e => setCoverLetterApi(e.target.value), style: { width: '100%' } },
+                                ...apis.map(a => h('option', { key: a.api_name, value: a.api_name }, a.api_name))
+                            )
+                        ),
+                        h('div', { style: { flex: 3 } },
+                            h('div', { style: { fontSize: '0.9em', marginBottom: 4 } }, 'Prompt 模板'),
+                            h('textarea', { value: coverLetterPrompt, onChange: e => setCoverLetterPrompt(e.target.value), rows: 3, style: { width: '100%', fontSize: '13px' } })
+                        )
+                    ),
+                    h('div', { style: { display: 'flex', gap: 8, marginBottom: 12 } },
+                        h('button', { 
+                            onClick: startCoverLetter, 
+                            disabled: coverLetterRunning || !paperResult,
+                            className: 'primary'
+                        }, coverLetterRunning ? '生成中...' : (coverLetter ? '重新生成' : '生成 附涵')),
+                        coverLetter ? h('button', {
+                            onClick: continueCoverLetter,
+                            disabled: coverLetterRunning,
+                            className: 'primary'
+                        }, '继续生成') : null
+                    ),
+                    coverLetter ? h('div', { style: { marginTop: 12 } },
+                        h('div', { style: { fontWeight: 'bold', marginBottom: 8 } }, '附涵 预览'),
+                        h('div', { className: 'markdown-body', style: { maxHeight: 'none', overflow: 'visible', padding: 40, background: '#fff', border: '1px solid #eee', borderRadius: 8, fontSize: '13px', lineHeight: '1.6' } },
+                            h(ReactMarkdown, { remarkPlugins: [remarkGfm], rehypePlugins: [] }, coverLetter)
+                        )
+                    ) : null
+                ) : null
+            ),
+
+            // Phase 2: Peer Review
+            h('div', null,
+                h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, borderBottom: '1px solid #eee', paddingBottom: 8 } },
+                    h('h4', { style: { margin: 0 } }, '2. 模拟同行评审'),
+                    h('div', { style: { display: 'flex', gap: 8 } },
+                        reviews.length > 0 ? h('button', { className: 'secondary btn-small', onClick: () => downloadPdfContent(reviews.map(r => `## Reviewer ${r.reviewerId}\n\n${r.content}`).join('\n\n---\n\n'), 'Peer_Reviews.pdf') }, '下载 PDF') : null,
+                        h('button', { className: 'secondary btn-small', onClick: () => setReviewsExpanded(!reviewsExpanded) }, reviewsExpanded ? '折叠' : '展开')
+                    )
+                ),
+                reviewsExpanded ? h('div', null,
+                    h('div', { className: 'muted', style: { marginBottom: 12 } }, '模拟 3 位审稿人的评审意见。'),
+                    h('div', { style: { display: 'flex', gap: 12, marginBottom: 12 } },
+                        h('div', { style: { flex: 1 } },
+                            h('div', { style: { fontSize: '0.9em', marginBottom: 4 } }, 'Reviewer 1 API'),
+                            h('select', { value: reviewerApis[0], onChange: e => { const n = [...reviewerApis]; n[0] = e.target.value; setReviewerApis(n) }, style: { width: '100%' } },
+                                h('option', { value: '' }, '-- 选择 API --'),
+                                ...apis.map(a => h('option', { key: a.api_name, value: a.api_name }, a.api_name))
+                            )
+                        ),
+                        h('div', { style: { flex: 1 } },
+                            h('div', { style: { fontSize: '0.9em', marginBottom: 4 } }, 'Reviewer 2 API'),
+                            h('select', { value: reviewerApis[1], onChange: e => { const n = [...reviewerApis]; n[1] = e.target.value; setReviewerApis(n) }, style: { width: '100%' } },
+                                h('option', { value: '' }, '-- 选择 API --'),
+                                ...apis.map(a => h('option', { key: a.api_name, value: a.api_name }, a.api_name))
+                            )
+                        ),
+                        h('div', { style: { flex: 1 } },
+                            h('div', { style: { fontSize: '0.9em', marginBottom: 4 } }, 'Reviewer 3 API'),
+                            h('select', { value: reviewerApis[2], onChange: e => { const n = [...reviewerApis]; n[2] = e.target.value; setReviewerApis(n) }, style: { width: '100%' } },
+                                h('option', { value: '' }, '-- 选择 API --'),
+                                ...apis.map(a => h('option', { key: a.api_name, value: a.api_name }, a.api_name))
+                            )
+                        )
+                    ),
+                    h('div', { style: { marginBottom: 12 } },
+                        h('div', { style: { fontSize: '0.9em', marginBottom: 4 } }, '评审 Prompt (通用)'),
+                        h('textarea', { value: reviewPrompt, onChange: e => setReviewPrompt(e.target.value), rows: 3, style: { width: '100%', fontSize: '13px' } })
+                    ),
+                    h('button', { 
+                        onClick: startPeerReview, 
+                        disabled: reviewsRunning || !coverLetter,
+                        className: 'primary'
+                    }, reviewsRunning ? '评审中...' : (reviews.length > 0 ? '重新评审' : '开始同行评审')),
+                    
+                    reviews.length > 0 ? h('div', { style: { marginTop: 12 } },
+                        reviews.map((r, i) => h('div', { key: i, style: { marginTop: 12, borderTop: '1px solid #eee', paddingTop: 12 } },
+                            h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 } },
+                                h('div', { style: { fontWeight: 'bold' } }, `Reviewer ${r.reviewerId} 意见`),
+                                h('button', { className: 'secondary btn-small', onClick: () => downloadPdfContent(r.content, `Reviewer_${r.reviewerId}.pdf`) }, '下载 PDF')
+                            ),
+                            h('div', { className: 'markdown-body', style: { maxHeight: 'none', overflow: 'visible', padding: 40, background: '#fff', border: '1px solid #eee', borderRadius: 8, fontSize: '13px', lineHeight: '1.6' } },
+                                h(ReactMarkdown, { remarkPlugins: [remarkGfm], rehypePlugins: [] }, r.content)
+                            )
+                        ))
+                    ) : null
+                ) : null
+            ),
+
+            // Phase 3: Response & Revision
+            h('div', null,
+                h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, borderBottom: '1px solid #eee', paddingBottom: 8 } },
+                    h('h4', { style: { margin: 0 } }, '3. 回复与修稿'),
+                    h('div', { style: { display: 'flex', gap: 8 } },
+                        responseContent ? h('button', { className: 'secondary btn-small', onClick: () => downloadPdfContent(responseContent, 'Response_Letter.pdf') }, '下载回复 PDF') : null,
+                        h('button', { className: 'secondary btn-small', onClick: () => setResponseExpanded(!responseExpanded) }, responseExpanded ? '折叠' : '展开')
+                    )
+                ),
+                responseExpanded ? h('div', null,
+                    h('div', { className: 'muted', style: { marginBottom: 12 } }, '根据审稿意见生成回复信，并修改论文。'),
+                    h('div', { style: { display: 'flex', gap: 12, marginBottom: 12 } },
+                        h('div', { style: { flex: 1 } },
+                            h('div', { style: { fontSize: '0.9em', marginBottom: 4 } }, '选择 API'),
+                            h('select', { value: responseApi, onChange: e => setResponseApi(e.target.value), style: { width: '100%' } },
+                                ...apis.map(a => h('option', { key: a.api_name, value: a.api_name }, a.api_name))
+                            )
+                        ),
+                        h('div', { style: { flex: 3 } },
+                            h('div', { style: { fontSize: '0.9em', marginBottom: 4 } }, '回复 Prompt'),
+                            h('textarea', { value: responsePrompt, onChange: e => setResponsePrompt(e.target.value), rows: 3, style: { width: '100%', fontSize: '13px' } })
+                        )
+                    ),
+                    h('div', { style: { display: 'flex', gap: 8, marginBottom: 12 } },
+                        h('button', { 
+                            onClick: startResponse, 
+                            disabled: responseRunning || reviews.length === 0,
+                            className: 'primary'
+                        }, responseRunning ? '生成中...' : (responseContent ? '重新生成' : '生成回复与修订')),
+                        responseRaw ? h('button', {
+                            onClick: continueResponse,
+                            disabled: responseRunning,
+                            className: 'primary'
+                        }, '继续生成') : null
+                    ),
+                    responseContent ? h('div', { style: { marginTop: 12 } },
+                        h('div', { style: { fontWeight: 'bold', marginBottom: 8 } }, '回复信预览'),
+                        h('div', { className: 'markdown-body', style: { maxHeight: 'none', overflow: 'visible', padding: 40, background: '#fff', border: '1px solid #eee', borderRadius: 8, fontSize: '13px', lineHeight: '1.6' } },
+                            h(ReactMarkdown, { remarkPlugins: [remarkGfm], rehypePlugins: [] }, responseContent)
+                        )
+                    ) : null
+                ) : null
+            ),
+
+            // Phase 4: Final Paper
+            finalPaper ? h('div', null,
+                h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, borderBottom: '1px solid #eee', paddingBottom: 8 } },
+                    h('h4', { style: { margin: 0 } }, '4. 定稿'),
+                    h('div', { style: { display: 'flex', gap: 8 } },
+                        h('button', { className: 'secondary btn-small', onClick: () => downloadPdfContent(finalPaper, 'Final_Paper.pdf') }, '下载定稿 PDF'),
+                        finalSupplementary ? h('button', { className: 'secondary btn-small', onClick: () => downloadPdfContent(finalSupplementary, 'Final_Supplementary.pdf') }, '下载补充材料 PDF') : null,
+                        h('button', { className: 'secondary btn-small', onClick: () => setFinalPaperExpanded(!finalPaperExpanded) }, finalPaperExpanded ? '折叠' : '展开')
+                    )
+                ),
+                finalPaperExpanded ? h('div', null,
+                    h('div', { className: 'markdown-body', style: { maxHeight: 'none', overflow: 'visible', padding: 40, background: '#fff', border: '1px solid #eee', borderRadius: 8, fontSize: '13px', lineHeight: '1.6' } },
+                        h(ReactMarkdown, { remarkPlugins: [remarkGfm, remarkMath], rehypePlugins: [rehypeKatex] }, finalPaper)
+                    )
+                ) : null
+            ) : null
+
+        )
       ) : null
     ),
     
