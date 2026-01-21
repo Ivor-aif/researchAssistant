@@ -318,6 +318,39 @@ function DirectionDetailContent({ project, onExit }) {
         if (fresh.paper_extra_req) setPaperExtraReq(fresh.paper_extra_req)
         if (fresh.status) setStatus(fresh.status)
 
+        // Step 1: Literature Collection
+        if (fresh.keywords) setKeywords(fresh.keywords)
+        if (fresh.search_api_name) setSearchApiName(fresh.search_api_name)
+        if (fresh.search_prompt_tpl) setSearchPromptTpl(fresh.search_prompt_tpl)
+        if (fresh.manual_site_selected && Object.keys(fresh.manual_site_selected).length > 0) setManualSiteSelected(fresh.manual_site_selected)
+        if (fresh.search_results && fresh.search_results.length > 0) setResults(fresh.search_results)
+        if (fresh.uploaded_files && fresh.uploaded_files.length > 0) setUploaded(fresh.uploaded_files)
+
+        // Step 2: Research Anchoring
+        if (fresh.review_api_name) setReviewApiName(fresh.review_api_name)
+        if (fresh.review_prompt_tpl) setReviewPromptTpl(fresh.review_prompt_tpl)
+        if (fresh.review_md) setReviewMd(fresh.review_md) // Already handled by directions.js but good to be explicit
+
+        // Step 3: Deep Research
+        if (fresh.deep_api_name) setDeepApiName(fresh.deep_api_name)
+        if (fresh.deep_prompt_tpl) setDeepPromptTpl(fresh.deep_prompt_tpl)
+        if (fresh.deep_result) setDeepResult(fresh.deep_result)
+
+        // Step 3.5: Data Analysis
+        if (fresh.data_api_name) setDataApiName(fresh.data_api_name)
+        if (fresh.data_prompt_tpl) setDataPromptTpl(fresh.data_prompt_tpl)
+        if (fresh.data_result) setDataResult(fresh.data_result)
+        if (fresh.data_files && fresh.data_files.length > 0) setDataFiles(fresh.data_files)
+
+        // Step 3.6: Conclusion
+        if (fresh.conclusion_api_name) setConclusionApiName(fresh.conclusion_api_name)
+        if (fresh.conclusion_prompt_tpl) setConclusionPromptTpl(fresh.conclusion_prompt_tpl)
+        if (fresh.conclusion_result) setConclusionResult(fresh.conclusion_result)
+
+        // Step 4: Paper Writing
+        if (fresh.paper_api_name) setPaperApiName(fresh.paper_api_name)
+        if (fresh.paper_prompt_tpl) setPaperPromptTpl(fresh.paper_prompt_tpl)
+
         if (fresh.cover_letter) setCoverLetter(fresh.cover_letter)
         if (fresh.submission_status) setSubmissionStatus(fresh.submission_status)
         if (fresh.reviews && Array.isArray(fresh.reviews)) setReviews(fresh.reviews)
@@ -377,6 +410,65 @@ useEffect(() => {
   }, 2000) // 2s debounce
   return () => clearTimeout(t)
 }, [paperResult, supplementaryResult, paperExtraReq])
+
+// Auto-save Step 1 & 2 (Literature & Anchoring)
+useEffect(() => {
+  const t = setTimeout(() => {
+    if (!d.id) return
+    api(`/directions/${d.id}`, { 
+      method: 'PUT', 
+      body: { 
+        keywords, 
+        search_api_name: searchApiName,
+        search_prompt_tpl: searchPromptTpl,
+        manual_site_selected: manualSiteSelected,
+        search_results: results,
+        uploaded_files: uploaded,
+        review_api_name: reviewApiName,
+        review_prompt_tpl: reviewPromptTpl
+      } 
+    }).catch(() => {})
+  }, 2000)
+  return () => clearTimeout(t)
+}, [keywords, searchApiName, searchPromptTpl, manualSiteSelected, results, uploaded, reviewApiName, reviewPromptTpl])
+
+// Auto-save Step 3 (Deep Research, Data, Conclusion)
+useEffect(() => {
+  const t = setTimeout(() => {
+    if (!d.id) return
+    api(`/directions/${d.id}`, { 
+      method: 'PUT', 
+      body: { 
+        deep_api_name: deepApiName,
+        deep_prompt_tpl: deepPromptTpl,
+        deep_result: deepResult,
+        data_api_name: dataApiName,
+        data_prompt_tpl: dataPromptTpl,
+        data_result: dataResult,
+        data_files: dataFiles,
+        conclusion_api_name: conclusionApiName,
+        conclusion_prompt_tpl: conclusionPromptTpl,
+        conclusion_result: conclusionResult
+      } 
+    }).catch(() => {})
+  }, 2000)
+  return () => clearTimeout(t)
+}, [deepApiName, deepPromptTpl, deepResult, dataApiName, dataPromptTpl, dataResult, dataFiles, conclusionApiName, conclusionPromptTpl, conclusionResult])
+
+// Auto-save Step 4 Config (Paper)
+useEffect(() => {
+  const t = setTimeout(() => {
+    if (!d.id) return
+    api(`/directions/${d.id}`, { 
+      method: 'PUT', 
+      body: { 
+        paper_api_name: paperApiName,
+        paper_prompt_tpl: paperPromptTpl
+      } 
+    }).catch(() => {})
+  }, 2000)
+  return () => clearTimeout(t)
+}, [paperApiName, paperPromptTpl])
 
   const pageSize = 20
   const name = d.name || '(未命名)'
@@ -1707,6 +1799,7 @@ Just output the remaining content until the paper and supplementary materials ar
         
         setCoverLetter(answer)
         setMsg('附涵 生成完毕')
+        api('/directions/' + d.id, { method: 'PUT', body: { cover_letter: answer } }).catch(() => {})
     } catch (e) {
         setMsg('附涵 生成失败: ' + e.message)
     } finally {
@@ -1791,6 +1884,7 @@ Just output the remaining content.`
         
         const results = await Promise.all(promises)
         setReviews(results)
+        api('/directions/' + d.id, { method: 'PUT', body: { reviews: results } }).catch(() => {})
         setMsg('同行评审完成')
     } catch (e) {
         setMsg('同行评审流程失败: ' + e.message)
@@ -1827,9 +1921,15 @@ Just output the remaining content.`
     revPaper = extract(text, '[REVISED_PAPER_START]', '[REVISED_PAPER_END]', ['[REVISED_SUPPLEMENTARY_START]'])
     revSupp = extract(text, '[REVISED_SUPPLEMENTARY_START]', '[REVISED_SUPPLEMENTARY_END]')
     
-    setResponseContent(normalizeMarkdown(resp))
-    setFinalPaper(normalizeMarkdown(revPaper))
-    setFinalSupplementary(normalizeMarkdown(revSupp))
+    const rContent = normalizeMarkdown(resp)
+    const rPaper = normalizeMarkdown(revPaper)
+    const rSupp = normalizeMarkdown(revSupp)
+
+    setResponseContent(rContent)
+    setFinalPaper(rPaper)
+    setFinalSupplementary(rSupp)
+    
+    return { response_content: rContent, final_paper_md: rPaper, final_supplementary_md: rSupp }
   }
 
   async function startResponse() {
@@ -1935,7 +2035,12 @@ Just output the remaining content until [REVISED_SUPPLEMENTARY_END].`
         const answer = r && r.answer ? String(r.answer) : ''
         const newRaw = responseRaw + answer
         setResponseRaw(newRaw)
-        parseResponseAndSetState(newRaw)
+        const parsed = parseResponseAndSetState(newRaw)
+        
+        api('/directions/' + d.id, { method: 'PUT', body: { 
+            response_raw: newRaw,
+            ...parsed
+        } }).catch(() => {})
         
         setMsg('继续生成完毕')
     } catch (e) {

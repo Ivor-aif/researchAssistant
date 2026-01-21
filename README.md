@@ -1,5 +1,7 @@
 # Research Assistant
 
+![Research Assistant Banner](web/assets/banner.svg)
+
 这是一个用于管理研究项目和方向的 Web 应用程序。它提供了项目跟踪、研究方向管理以及 AI 辅助配置等功能。
 
 ## 功能特性
